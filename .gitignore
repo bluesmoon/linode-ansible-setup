@@ -1,3 +1,2 @@
 .DS_Store
 env
-group_vars/secret_vars

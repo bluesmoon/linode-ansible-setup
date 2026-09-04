@@ -130,8 +130,25 @@ ansible-vault encrypt_string 'SUDO_PASSWORD' --name 'sudo_password' >> group_var
 These commands will create or overwrite the file `group_vars/secret_vars` with your encrypted secrets.
 You may store this file in your shared vault for other members of your team to use.
 
-The `.gitignore` file is set up to ignore the `group_vars/secret_vars` file, so changes you make will not
-be accidentally committed to version control.
-
 The file included as part of this repository contains the example secrets used above and do not actually work.
 (You need a valid Linode Token before starting anything).
+
+#### 4. Set vars for your Linode(s)
+
+Now edit `group_vars/vars` as follows:
+
+* `ssh_keys`: This is a list of one or more ssh public keys that will be added to the root user on your Linode(s).
+  You should remove the default fake keys and add your own public key here.
+* `instance_prefix`: This is a prefix that will be used to name your Linode(s) along with the region code in the
+  format `<prefix>-<region>-<index>`.
+* `cluster_size`: This is the number of linodes to create in each region.
+* `type`: The linode type. See https://api.linode.com/v4/linode/types for the full list of available Linode instance types.
+* `region`: A list of one or more regions to create your Linode(s) in. See https://api.linode.com/v4/regions for the full list
+  of available regions and make sure your linode type is supported in those regions.
+* `image`: The image to use.
+* `linode_tags`: An optional list of tags to apply to your Linode(s). Tags are useful for grouping and filtering your Linodes in the Linode Manager.
+* `firewall_label`: The label of the firewall you created above. This is used to apply the firewall to your Linode(s) as soon as they are created.
+* `vpc_label`: An optional label for a VPC to create. If not specified, this is derived from the `instance_prefix` and `region`.
+* `domain_name`: If you have a domain name managed by Linode, you can specify it here to create DNS records for your Linode(s). If you don't have a domain name, you can leave this blank and set it up later.
+* `ttl_sec`: If managing DNS through linode, this is the ttl in seconds to use for DNS records created for your Linode(s). Leave blank to use linode's default.
+* `sudo_username`: This is the username of a non-root user to create on your Linode(s) with sudo privileges.

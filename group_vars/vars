@@ -1,0 +1,27 @@
+# deployment vars
+ssh_keys:
+  - ssh-ed25519 AAAAC3Nzafoobarbaz user1@desktop.local
+  - ssh-rsa AAAAB3Nzafoobarbaz/Zab==
+
+instance_prefix: my-linode
+cluster_size: 2
+
+# See https://api.linode.com/v4/linode/types for the full list of available Linode instance types.
+type: g8-dedicated-4-2
+
+# See https://api.linode.com/v4/regions for the full list of available Linode regions. Make sure the type you select is available in the region you select.
+# You only need to specify one region, but you can specify multiple regions if you want to deploy across multiple regions.
+region:
+  - us-ord
+  - us-mia
+
+image: linode/ubuntu26.04
+linode_tags:
+firewall_label:
+vpc_label:
+
+# Optional settings for DNS
+domain_name:
+ttl_sec:
+
+sudo_username: admin
