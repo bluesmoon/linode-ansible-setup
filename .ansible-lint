@@ -1,0 +1,17 @@
+---
+profile: production
+
+exclude_paths:
+  - .cache/
+  - .github/
+  # ciphertext, not lintable YAML
+  - group_vars/secret_vars
+
+# Collections used by the roles need to be resolvable for schema/argument
+# checks (e.g. linode.cloud modules) - installed in CI via collections.yml
+# before this runs, so no offline/mock overrides needed here.
+
+# Nothing in skip_list/warn_list yet on purpose: the production profile is
+# expected to surface real findings against the current codebase (see PR
+# discussion). Add specific rule IDs here only with a comment explaining why,
+# not as a blanket way to get CI green.

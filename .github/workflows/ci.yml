@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same PR/branch
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install yamllint
+        run: pip install "yamllint==$(grep -oP 'yamllint==\K[0-9.]+' requirements.txt)"
+
+      - name: Run yamllint
+        run: yamllint .
+
+  ansible-lint:
+    name: ansible-lint (production profile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cache Ansible collections
+        uses: actions/cache@v4
+        with:
+          path: ~/.ansible/collections
+          key: collections-${{ runner.os }}-${{ hashFiles('collections.yml') }}
+
+      - name: Install collections
+        run: ansible-galaxy collection install -r collections.yml
+
+      - name: Run ansible-lint
+        run: ansible-lint --profile production
+
+  syntax-check:
+    name: ansible-playbook --syntax-check (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Cache Ansible collections
+        uses: actions/cache@v4
+        with:
+          path: ~/.ansible/collections
+          key: collections-${{ runner.os }}-${{ hashFiles('collections.yml') }}
+
+      - name: Install collections
+        run: ansible-galaxy collection install -r collections.yml
+
+      - name: Generate throwaway vault password
+        run: openssl rand -base64 32 > /tmp/vault_pass.txt
+
+      - name: Replace secret_vars with a dummy encrypted file for syntax-check
+        # provision.yml / shutdown.yml explicitly load group_vars/secret_vars via
+        # vars_files, so ansible-playbook needs *something* decryptable there even
+        # for --syntax-check. This never touches or needs the real secrets -
+        # it's a throwaway password + throwaway values, generated and discarded
+        # inside this job only.
+        run: |
+          cat > /tmp/secret_vars_plain.yml <<'EOF'
+          ---
+          api_token: dummy-token-for-ci
+          sudo_password: dummy-password-for-ci
+          EOF
+          ansible-vault encrypt /tmp/secret_vars_plain.yml \
+            --vault-password-file /tmp/vault_pass.txt \
+            --output group_vars/secret_vars
+
+      - name: Syntax-check provision.yml
+        run: ansible-playbook provision.yml --syntax-check --vault-password-file /tmp/vault_pass.txt
+
+      - name: Syntax-check shutdown.yml
+        run: ansible-playbook shutdown.yml --syntax-check --vault-password-file /tmp/vault_pass.txt

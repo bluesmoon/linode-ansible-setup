@@ -1,0 +1,122 @@
+name: Check Ansible Galaxy collection versions
+
+# Dependabot doesn't support the "ansible-galaxy" ecosystem, so collections.yml
+# (community.crypto, linode.cloud, community.general) isn't covered by
+# .github/dependabot.yml. This is a minimal stand-in: same weekly cadence,
+# opens/updates one tracking issue rather than a PR per collection, since
+# bumping a pin here should go through the full CI (ansible-lint production
+# profile + syntax-check) as a deliberate change, not an automated one.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Monday 06:00 UTC, same week as the pip Dependabot run
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+jobs:
+  check-collections:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Compare pinned versions against Galaxy
+        id: check
+        run: |
+          python3 <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import urllib.request
+          import yaml
+
+          with open("collections.yml") as f:
+              pinned = yaml.safe_load(f)["collections"]
+
+          def tup(v):
+              return tuple(int(p) for p in v.split("."))
+
+          outdated = []
+          for c in pinned:
+              namespace, name = c["name"].split(".", 1)
+              url = (
+                  "https://galaxy.ansible.com/api/v3/plugin/ansible/content/"
+                  f"published/collections/index/{namespace}/{name}/"
+              )
+              try:
+                  with urllib.request.urlopen(url, timeout=15) as resp:
+                      data = json.load(resp)
+                  latest = data["highest_version"]["version"]
+              except Exception as e:
+                  print(f"WARN: could not check {c['name']}: {e}")
+                  continue
+
+              if tup(latest) > tup(c["version"]):
+                  outdated.append((c["name"], c["version"], latest))
+
+          if outdated:
+              print("## Outdated Ansible Galaxy collections\n")
+              print("| Collection | Pinned | Latest |")
+              print("|---|---|---|")
+              for name, pinned_v, latest_v in outdated:
+                  print(f"| {name} | {pinned_v} | {latest_v} |")
+              with open("outdated.json", "w") as f:
+                  json.dump(outdated, f)
+          else:
+              print("All collections.yml pins are current with Galaxy.")
+          PYEOF
+
+      - name: Ensure "dependencies" label exists
+        if: hashFiles('outdated.json') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create dependencies --color "0366d6" \
+            --description "Dependency updates" --force
+
+      - name: File or update tracking issue
+        if: hashFiles('outdated.json') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BODY_FILE=$(mktemp)
+          {
+            echo "Automated check found collections.yml pins behind the latest published version on Galaxy."
+            echo
+            echo "| Collection | Pinned | Latest |"
+            echo "|---|---|---|"
+            python3 -c "
+          import json
+          for name, pinned_v, latest_v in json.load(open('outdated.json')):
+              print(f'| {name} | {pinned_v} | {latest_v} |')
+          "
+            echo
+            echo "Bumping these should go through the normal CI gate (ansible-lint production profile + syntax-check) since collection upgrades can change module arguments."
+          } > "$BODY_FILE"
+
+          existing=$(gh issue list --search "Outdated Ansible Galaxy collections in:title" --state open --json number --jq '.[0].number')
+
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file "$BODY_FILE"
+          else
+            gh issue create \
+              --title "Outdated Ansible Galaxy collections" \
+              --label dependencies \
+              --body-file "$BODY_FILE"
+          fi
+
+      - name: Close tracking issue if everything is current
+        if: hashFiles('outdated.json') == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh issue list --search "Outdated Ansible Galaxy collections in:title" --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "All collections.yml pins are now current with Galaxy."
+          fi
