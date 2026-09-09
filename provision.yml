@@ -1,0 +1,347 @@
+---
+# create linode server and client instances
+- name: create linode instances
+  hosts: localhost
+  vars_files:
+      - group_vars/vars
+      - group_vars/secret_vars
+
+  tasks:
+
+
+  # Environment
+
+  - name: check if region supports all necessary features
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/region_info/
+    # https://techdocs.akamai.com/cloud-computing/docs/how-to-choose-a-data-center#product-availability
+    linode.cloud.region_info:
+      api_token: '{{ api_token }}'
+      id: '{{ item }}'
+    register: region_info
+    with_items: '{{ region }}'
+
+
+  # VPC
+
+  - name: assign vpc label
+    when: vpc_label is not defined or vpc_label|d('', true) == ''
+    set_fact:
+      vpc_label: '{{ instance_prefix }}-cluster'
+
+  - name: assign vpc subnet
+    set_fact:
+      vpc_subnet: '10.0.0.0/{{ 32 - (((3*cluster_size) | log(2) | round(0, "ceil"))|int) }}'  # subnet supports an IP range 3x the cluster size
+
+  - name: create vpc
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc/
+    linode.cloud.vpc:
+      label: '{{ vpc_label }}-{{ item }}'
+      region: '{{ item }}'
+      api_token: '{{ api_token }}'
+      description: VPC for {{ linode_tags }} in {{ item }} to talk to each other.
+      state: present
+    register: vpc_info
+    when: vpc_label != ''
+    with_items: '{{ region }}'
+
+  - name: get vpc subnet info
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc_subnet_info/
+    linode.cloud.vpc_subnet_info:
+      label: '{{ vpc_label }}-{{ item.vpc.region }}-brokers'
+      vpc_id: '{{ item.vpc.id }}'
+      api_token: '{{ api_token }}'
+    register: vpc_subnet_info
+    ignore_errors: true
+    with_items: '{{ vpc_info.results }}'
+    failed_when: false
+    when:
+      - vpc_label != ''
+      - item.vpc.id|d(0) > 0
+
+  - name: remove incompatible subnet
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc_subnet/
+    linode.cloud.vpc_subnet:
+      label: '{{ vpc_label }}-{{ item.item.vpc.region }}-brokers'
+      api_token: '{{ api_token }}'
+      state: absent
+      vpc_id: '{{ item.item.vpc.id }}'
+    when:
+      - vpc_label != ''
+      - item is succeeded
+      - (item.msg|d('')) is not match('Failed to get VPC Subnet with label')
+      - item.subnet.ipv4 != vpc_subnet
+    with_items: '{{ vpc_subnet_info.results }}'
+
+  - name: create vpc subnet
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc_subnet/
+    linode.cloud.vpc_subnet:
+      ipv4: '{{ vpc_subnet }}'  # subnet supports an IP range 3x the cluster size
+      label: '{{ vpc_label }}-{{ item.vpc.region }}-brokers'
+      api_token: '{{ api_token }}'
+      state: present
+      vpc_id: '{{ item.vpc.id }}'
+    register: vpc_subnet_info
+    when:
+      - vpc_label|d('') != ''
+      - item.vpc.id|d(0) > 0
+    with_items: '{{ vpc_info.results }}'
+
+
+  # Firewall
+
+  - name: get firewall info
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall_info/
+    linode.cloud.firewall_info:
+      label: '{{ firewall_label }}'
+      api_token: '{{ api_token }}'
+    register: firewall_info
+    when: firewall_label|d('') != ''
+
+
+  # Placement Group
+
+  - name: set hosts per placement group
+    set_fact:
+      max_hosts_per_pg: 4
+    when: max_hosts_per_pg|d(-1) < 0
+
+  - name: create placement group for HA
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/placement_group/
+    linode.cloud.placement_group:
+      label: '{{ instance_prefix }}-{{ item.0 }}-ha-{{ item.1 }}'
+      placement_group_policy: strict
+      placement_group_type: anti_affinity:local
+      region: '{{ item.0 }}'
+      state: present
+      api_token: '{{ api_token }}'
+    register: placement_group_info
+    with_nested:
+      - '{{ region }}'
+      - '{{ range(1, (cluster_size / max_hosts_per_pg) | round(0, "ceil") | int + 1 ) }}'
+
+
+  # Instances
+
+  - name: check if instances already created
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance_list/
+    linode.cloud.instance_list:
+      api_token: '{{ api_token }}'
+      filters:
+        - name: label
+          values: "{{ [ instance_prefix ] | product([region]|flatten, query('sequence', count=cluster_size, format='%03d')) | map('join', '-') | list }}"
+      order_by: label
+    register: existing_instances
+
+  - name: convert instances to a dict
+    set_fact:
+      existing_instances: "{{ dict(existing_instances.instances | map(attribute='label') | zip(existing_instances.instances)) }}"
+
+  - name: creating linode servers
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance/
+    linode.cloud.instance:
+      label: '{{ item | join("-") }}'
+      api_token: '{{ api_token }}'
+      type: '{{ type }}'
+      region: '{{ item.1 }}'
+      image: '{{ image }}'
+      # TODO: Can we make this optional and allow key-only access?
+      root_pass: '{{ root_password }}'
+      authorized_keys: '{{ ssh_keys }}'
+      disk_encryption: 'enabled'
+      interfaces:
+        - purpose: 'vpc'
+          subnet_id: '{{ (vpc_subnet_info.results | selectattr("item.vpc.region", "eq", item.1) | map(attribute="subnet.id") | first) }}'
+          primary: true
+          ipv4:
+            nat_1_1: 'any'
+      placement_group:
+        compliant_only: true
+        id: '{{ (placement_group_info.results | selectattr("placement_group.region", "eq", item.1) | map(attribute="placement_group"))[(item[2]|int-1) // max_hosts_per_pg].id }}'
+      private_ip: false
+      ua_prefix: 'bluesmoon/linode-ansible-setup'
+      tags: '{{ linode_tags }}'
+      state: present
+      firewall_id: '{{ (firewall_info.firewall|default({})).id|default(omit) }}'
+    with_nested:
+      - "{{ [instance_prefix] }}"
+      - "{{ region }}"
+      - "{{ query('sequence', count=cluster_size, format='%03d') }}"
+    when: (item | join('-')) not in existing_instances
+
+  - name: get info about the instances
+    linode.cloud.instance_info:
+      api_token: '{{ api_token }}'
+      label: '{{ instance_prefix }}-{{ item | join("-") }}'
+    register: info
+    with_nested:
+      - '{{ region }}'
+      - "{{ query('sequence', count=cluster_size, format='%03d') }}"
+
+  - name: create in-memory node list
+    set_fact:
+      all_hosts: "{{ all_hosts|d([]) + [{ 'id': item.instance.id, 'label': item.instance.label, 'ip': item.networking.ipv4.public.0.address, 'region': item.instance.region, 'tags': item.instance.tags }] }}"
+    with_items: '{{ info.results }}'
+
+
+  # Update Firewall
+
+  - name: get updated firewall info
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall_info/
+    linode.cloud.firewall_info:
+      label: '{{ firewall_label }}'
+      api_token: '{{ api_token }}'
+    register: firewall_info
+    when: firewall_label|d('') != ''
+
+  - name: add vpc subnet and hosts to firewall
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall/
+    linode.cloud.firewall:
+      api_token: '{{ api_token }}'
+      label: '{{ firewall_label }}'
+      devices: '{{ firewall_info.firewall.entities | map("dict2items") | map("selectattr", "key", "in", ["id", "type"]) | map("items2dict") }}'
+      rules:
+        inbound: '{{ (firewall_info.firewall.rules.inbound | rejectattr("label", "in", ["accept-" + vpc_label, "accept-cluster-hosts"])) + new_firewall_rules }}'
+        inbound_policy: '{{ firewall_info.firewall.rules.inbound_policy }}'
+        outbound: '{{ firewall_info.firewall.rules.outbound }}'
+        outbound_policy: '{{ firewall_info.firewall.rules.outbound_policy }}'
+      status: '{{ firewall_info.firewall.status }}'
+      tags: '{{ firewall_info.firewall.tags }}'
+      state: 'present'
+    vars:
+      new_firewall_rules:
+        - action: 'ACCEPT'
+          label: 'accept-{{ vpc_label }}'
+          description: 'Allow connections between nodes in the same VPC'
+          protocol: 'TCP'
+          addresses:
+            ipv4: '{{ vpc_subnet }}'
+          ports: '{{ local_cluster_ports|d([22], true) | join(",") }}'
+        - action: 'ACCEPT'
+          label: 'accept-cluster-hosts'
+          description: 'Allow connections between nodes in all clusters'
+          protocol: 'TCP'
+          addresses:
+            ipv4: '{{ all_hosts | map(attribute="ip") | product(["/32"]) | map("join") | list }}'
+          ports: '{{ remote_cluster_ports|d([22], true) | join(",") }}'
+    when: firewall_label|d('') != ''
+
+
+  # DNS
+
+  - name: assign empty domain name
+    when: domain_name == None
+    set_fact:
+      domain_name: ''
+
+  - name: assign empty domain service
+    when:
+      - domain_name == None or
+        domain_service is not defined or
+        domain_service == None
+    set_fact:
+      domain_service: ''
+
+  - name: check if hosts are in DNS
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_info/
+    linode.cloud.domain_info:
+      api_token: '{{ api_token }}'
+      domain: '{{ domain_name }}'
+    when:
+      - domain_name != ''
+      - domain_service == 'linode'
+    register: domain_info
+
+  - name: remove old hosts, brokers, and controllers from dns
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_record/
+    linode.cloud.domain_record:
+      api_token: '{{ api_token }}'
+      domain_id: '{{ domain_info.domain.id }}'
+      record_id: '{{ item[0].id }}'
+      state: absent
+    vars:
+      instance_ips: "{{ dict(info.results | map(attribute='instance.label') | zip(info.results | map(attribute='networking.ipv4.public.0.address'))) }}"
+    when:
+      - domain_name != ''
+      - domain_service == 'linode'
+      - domain_info|d([]) | length > 0
+      - item[0].name is regex('-' + item[1] + '-')
+      - (item[0].name in instance_ips and item[0].target != instance_ips[item[0].name])
+    with_nested:
+      - "{{ domain_info.records }}"
+      - "{{ region }}"
+
+  - name: add new hosts to dns
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_record/
+    linode.cloud.domain_record:
+      api_token: '{{ api_token }}'
+      domain_id: '{{ domain_info.domain.id }}'
+      name: '{{ item.instance.label }}'
+      target: '{{ item.instance.ipv4[0] }}'
+      ttl_sec: '{{ ttl_sec | default(omit) }}'
+      type: 'A'
+      state: present
+    with_items: "{{ info.results }}"
+    when:
+      - domain_name != ''
+      - domain_service == 'linode'
+      - domain_info|d([]) | length > 0
+
+
+  # Update inventory
+
+  - name: update group_vars
+    blockinfile:
+      path: ./group_vars/vars
+      marker: "# {mark} INSTANCE VARS"
+      block: |
+        #jinja2: trim_blocks:False
+        node_data:
+          server:
+            {%- for instance in info.results %}
+            - name: {{ instance.instance.label }}
+              instance:
+                hostname: {{ instance.instance.label }}{% if domain_name != '' %}.{{ domain_name }}{% endif %}
+                region: {{ instance.instance.region }}
+                ip_pub1: {{ instance.networking.ipv4.public.0.address }}
+                ip_priv1: {{ instance.networking.ipv4.vpc.0.address }}
+                {%- if domain_name != '' %}
+                aliases:
+                  - {{ instance.instance.label }}.{{ domain_name }}
+                {%- endif %}
+            {%- endfor %}
+
+  - name: create hosts file if it does not exist
+    ansible.builtin.file:
+      path: ./hosts
+      state: touch
+      modification_time: preserve
+      access_time: preserve
+
+  - name: add nodes to inventory
+    blockinfile:
+      path: ./hosts
+      marker: "# {mark} LINODE INSTANCES"
+      block: |
+        #jinja2: trim_blocks:False
+        {%- for r in [region]|flatten %}
+        [{{ r }}]
+        {%- for instance in info.results | selectattr('instance.region', 'eq', r) %}
+        {{ instance.networking.ipv4.public.0.rdns }} region='{{ instance.instance.region }}'
+        {%- endfor %}
+        {% endfor %}
+        [all:children]
+        {%- for r in [region]|flatten %}
+        {{ r }}
+        {%- endfor %}
+
+
+  # Wait
+
+  - name: wait for port 22 to become open
+    wait_for:
+      port: 22
+      host: '{{ item.networking.ipv4.public[0].rdns }}'
+      search_regex: OpenSSH
+      delay: 10
+    connection: local
+    with_items: "{{ info.results }}"
