@@ -17,7 +17,9 @@ region:
 
 image: linode/ubuntu26.04
 linode_tags:
+
 firewall_label:
+
 vpc_label:
 
 # Optional settings for DNS
@@ -25,3 +27,9 @@ domain_name:
 ttl_sec:
 
 sudo_username: admin
+
+local_cluster_ports:
+  - 22
+
+remote_cluster_ports:
+  - 22
