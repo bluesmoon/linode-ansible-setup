@@ -1,0 +1,100 @@
+---
+# shutdown linodes
+- name: shutdown instances
+  hosts: localhost
+  vars_files:
+      - group_vars/vars
+      - group_vars/secret_vars
+
+  tasks:
+
+  # DNS
+
+  - name: check if hosts are in DNS
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_info/
+    linode.cloud.domain_info:
+      api_token: '{{ api_token }}'
+      domain: '{{ domain_name }}'
+    when:
+      - domain_name is defined
+      - domain_name|d('', true) != ''
+    register: domain_info
+
+  - name: remove hosts from dns
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_record/
+    linode.cloud.domain_record:
+      api_token: '{{ api_token }}'
+      domain_id: '{{ domain_info.domain.id }}'
+      record_id: '{{ item.id }}'
+      state: absent
+    when:
+      - domain_name is defined
+      - domain_name|d('', true) != ''
+      - domain_info|d(False)|bool
+      - item.target in (node_data.server | map(attribute='instance.ip_pub1'))
+    with_items: "{{ domain_info.records }}"
+
+
+  # Instances
+
+  - name: get list of instances
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance_list/
+    linode.cloud.instance_list:
+      api_token: '{{ api_token }}'
+      filters:
+        - name: label
+          values: "{{ [ instance_prefix ] | product([region]|flatten, query('sequence', count=cluster_size, format='%03d')) | map('join', '-') | list }}"
+      order_by: label
+    register: existing_instances
+
+  - name: shutdown nodes
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance/
+    linode.cloud.instance:
+      label: '{{ item.label }}'
+      api_token: '{{ api_token }}'
+      region: '{{ region }}'
+      state: absent
+    with_items: '{{ existing_instances.instances }}'
+
+
+  # Firewall
+
+  - name: get updated firewall info
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall_info/
+    linode.cloud.firewall_info:
+      label: '{{ firewall_label }}'
+      api_token: '{{ api_token }}'
+    register: firewall_info
+    when:
+      - firewall_label is defined
+      - firewall_label|d('', true) != ''
+
+  - name: remove hosts from firewall
+    # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall/
+    linode.cloud.firewall:
+      api_token: '{{ api_token }}'
+      label: '{{ firewall_label }}'
+      devices: '{{ firewall_info.firewall.entities | map("dict2items") | map("selectattr", "key", "in", ["id", "type"]) | map("items2dict") }}'
+      rules:
+        inbound: '{{ (firewall_info.firewall.rules.inbound | rejectattr("label", "eq", "accept-cluster-hosts")) }}'
+        inbound_policy: '{{ firewall_info.firewall.rules.inbound_policy }}'
+        outbound: '{{ firewall_info.firewall.rules.outbound }}'
+        outbound_policy: '{{ firewall_info.firewall.rules.outbound_policy }}'
+      status: '{{ firewall_info.firewall.status }}'
+      tags: '{{ firewall_info.firewall.tags }}'
+      state: 'present'
+    when:
+      - firewall_label is defined
+      - firewall_label|d('', true) != ''
+
+  - name: update group_vars
+    blockinfile:
+      path: ./group_vars/vars
+      marker: "# {mark} INSTANCE VARS"
+      state: absent
+
+  - name: remove nodes from inventory
+    blockinfile:
+      path: ./hosts
+      marker: "# {mark} LINODE INSTANCES"
+      state: absent
