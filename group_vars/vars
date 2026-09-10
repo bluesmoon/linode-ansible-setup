@@ -3,6 +3,8 @@ ssh_keys:
   - ssh-ed25519 AAAAC3Nzafoobarbaz user1@desktop.local
   - ssh-rsa AAAAB3Nzafoobarbaz/Zab==
 
+ssh_privatekey: ~/.ssh/my-private-key
+
 instance_prefix: my-linode
 cluster_size: 2
 

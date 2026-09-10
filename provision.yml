@@ -136,6 +136,7 @@
     set_fact:
       existing_instances: "{{ dict(existing_instances.instances | map(attribute='label') | zip(existing_instances.instances)) }}"
 
+
   - name: creating linode servers
     # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance/
     linode.cloud.instance:
@@ -145,7 +146,6 @@
       region: '{{ item.1 }}'
       image: '{{ image }}'
       # TODO: Can we make this optional and allow key-only access?
-      root_pass: '{{ root_password }}'
       authorized_keys: '{{ ssh_keys }}'
       disk_encryption: 'enabled'
       interfaces:
@@ -172,15 +172,16 @@
     linode.cloud.instance_info:
       api_token: '{{ api_token }}'
       label: '{{ instance_prefix }}-{{ item | join("-") }}'
-    register: info
+    register: host_info
     with_nested:
       - '{{ region }}'
       - "{{ query('sequence', count=cluster_size, format='%03d') }}"
 
+
   - name: create in-memory node list
     set_fact:
-      all_hosts: "{{ all_hosts|d([]) + [{ 'id': item.instance.id, 'label': item.instance.label, 'ip': item.networking.ipv4.public.0.address, 'region': item.instance.region, 'tags': item.instance.tags }] }}"
-    with_items: '{{ info.results }}'
+      all_hosts: "{{ all_hosts|d([]) + [{ 'id': item.instance.id, 'label': item.instance.label, 'ip': item.networking.ipv4.public.0.address, 'rdns': item.networking.ipv4.public.0.rdns, 'region': item.instance.region, 'tags': item.instance.tags }] }}"
+    with_items: '{{ host_info.results }}'
 
 
   # Update Firewall
@@ -259,7 +260,7 @@
       record_id: '{{ item[0].id }}'
       state: absent
     vars:
-      instance_ips: "{{ dict(info.results | map(attribute='instance.label') | zip(info.results | map(attribute='networking.ipv4.public.0.address'))) }}"
+      instance_ips: "{{ dict(host_info.results | map(attribute='instance.label') | zip(host_info.results | map(attribute='networking.ipv4.public.0.address'))) }}"
     when:
       - domain_name != ''
       - domain_service == 'linode'
@@ -280,7 +281,7 @@
       ttl_sec: '{{ ttl_sec | default(omit) }}'
       type: 'A'
       state: present
-    with_items: "{{ info.results }}"
+    with_items: "{{ host_info.results }}"
     when:
       - domain_name != ''
       - domain_service == 'linode'
@@ -297,7 +298,7 @@
         #jinja2: trim_blocks:False
         node_data:
           server:
-            {%- for instance in info.results %}
+            {%- for instance in host_info.results %}
             - name: {{ instance.instance.label }}
               instance:
                 hostname: {{ instance.instance.label }}{% if domain_name != '' %}.{{ domain_name }}{% endif %}
@@ -325,7 +326,7 @@
         #jinja2: trim_blocks:False
         {%- for r in [region]|flatten %}
         [{{ r }}]
-        {%- for instance in info.results | selectattr('instance.region', 'eq', r) %}
+        {%- for instance in host_info.results | selectattr('instance.region', 'eq', r) %}
         {{ instance.networking.ipv4.public.0.rdns }} region='{{ instance.instance.region }}'
         {%- endfor %}
         {% endfor %}
@@ -334,14 +335,129 @@
         {{ r }}
         {%- endfor %}
 
+  - name: add hosts to in-memory inventory
+    add_host:
+      name: '{{ item.rdns }}'
+      groups: '{{ item.region }}'
+      ansible_host: '{{ item.ip }}'
+      ansible_user: 'root'
+      ansible_ssh_private_key_file: '{{ ssh_privatekey }}'
+      ansible_python_interpreter: '/usr/bin/python3'
+    with_items: '{{ all_hosts }}'
 
-  # Wait
 
+# The rest of the playbook can execute in parallel on the instances
+- hosts: '{{ hostvars.localhost.all_hosts | map(attribute="rdns") | list }}'
+  gather_facts: false
+
+  vars_files:
+      - group_vars/vars
+      - group_vars/secret_vars
+
+  handlers:
+  - name: restart ssh
+    systemd:
+      name: ssh
+      state: restarted
+      enabled: yes
+
+  tasks:
+
+  # Wait for ssh
   - name: wait for port 22 to become open
     wait_for:
       port: 22
-      host: '{{ item.networking.ipv4.public[0].rdns }}'
+      host: '{{ inventory_hostname }}'
       search_regex: OpenSSH
       delay: 10
     connection: local
-    with_items: "{{ info.results }}"
+
+  - name: gather facts about the hosts
+    setup:
+
+  - name: apt update cache
+    apt:
+      update_cache: yes
+
+  - name: update grub on ubuntu 26.04
+    when:
+      - ansible_facts['distribution'] == 'Ubuntu'
+      - ansible_facts['distribution_version'] is version('26.04', '>=')
+    script:
+      cmd: scripts/fix-grub.sh
+      creates: /.grub_updated
+
+  - name: apt upgrade packages
+    apt:
+      upgrade: safe
+
+  - name: install basic packages
+    apt:
+      pkg:
+      - chrony
+      - curl
+      - htop
+      - rsync
+      - python3
+      - python3-passlib
+      - acl
+      state: latest
+    register: package_updates
+
+  - name: secure ssh configs
+    lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: "{{ item.regexp }}"
+      line: "{{ item.line }}"
+    with_items:
+      - { regexp: '^\#?PermitRootLogin (yes|no)', line: 'PermitRootLogin prohibit-password' }
+      - { regexp: '^\#?PasswordAuthentication (yes|no)', line: 'PasswordAuthentication no' }
+      - { regexp: '^\#?PubkeyAuthentication (yes|no)', line: 'PubkeyAuthentication yes' }
+    notify: restart ssh
+
+  - name: set hard nofile limit
+    community.general.pam_limits:
+      domain: '{{ item.domain }}'
+      limit_type: '-'
+      limit_item: nofile
+      value: '{{ item.value }}'
+    loop:
+      - domain: '*'
+        value: 1048576
+      - domain: 'root'
+        value: 16777216
+
+  - name: Check if reboot required
+    stat:
+      path: /var/run/reboot-required
+    register: reboot_required_file
+
+  - name: reboot linode
+    reboot:
+    when:
+      - reboot_required_file.stat.exists == true
+
+
+  # create sudo username
+  - name: create sudo user
+    user:
+          name: "{{ sudo_username }}"
+          shell: /bin/bash
+          groups: sudo
+          password: "{{ sudo_password | string | password_hash('sha512') }}"
+          update_password: on_create
+          expires: -1
+          append: yes
+          generate_ssh_key: yes
+          ssh_key_bits: 4096
+          ssh_key_file: .ssh/id_rsa
+          state: present
+
+  - name: adding ssh keys to sudo user
+    copy:
+      src: /root/.ssh/authorized_keys
+      dest: '/home/{{ sudo_username }}/.ssh/authorized_keys'
+      owner: '{{ sudo_username }}'
+      group: '{{ sudo_username }}'
+      mode: 0600
+      remote_src: yes

@@ -117,13 +117,14 @@ set up a vault password file and use it with Ansible. You can either use `/etc/a
 
 If you're on MacOS, you can also [use the Keychain to store your vault password](https://samdoran.com/ansible-vault-and-macos-keychain-access/).
 
-Encrypt your Linode root password and valid APIv4 token with ansible-vault. Replace `ROOT_PASSWORD`, and `SUDO_PASSWORD` with your own preferred strong passwords
-and `LINODE_PAT` with your own access token created above.
+Encrypt your Linode sudo password and valid APIv4 token with ansible-vault. Replace `SUDO_PASSWORD` with your own preferred strong passwords
+and `LINODE_PAT` with your own access token created above. The root user will not have password based login. The only way to login as root is
+with one of the ssh keys included in the `ssh_keys` variable. The same key will also be used for the `sudo_username` user and their password
+is set using the `ansible-vault` command below.
 
 ```command
 rm -f group_vars/secret_vars
 ansible-vault encrypt_string 'LINODE_PAT' --name 'api_token' >> group_vars/secret_vars
-ansible-vault encrypt_string 'ROOT_PASSWORD' --name 'root_password' >> group_vars/secret_vars
 ansible-vault encrypt_string 'SUDO_PASSWORD' --name 'sudo_password' >> group_vars/secret_vars
 ```
 
@@ -140,7 +141,8 @@ Now edit `group_vars/vars` as follows:
 
 | Variable               | Description |
 |------------------------|--------------|
-| `ssh_keys`             | This is a list of one or more ssh public keys that will be added to the root user on your Linode(s).  You should remove the default fake keys and add your own public key here. |
+| `ssh_keys`             | This is a list of one or more ssh public keys that will be added to the root and sudo users on your Linode(s).  You should remove the default fake keys and add your own public key(s) here. |
+| `ssh_privatekey`       | This is the private key that corresponds to one of the public key(s) you added above. This is used by ansible to connect to your Linode(s) and run host commands from the playbook. |
 | `instance_prefix`      | This is a prefix that will be used to name your Linode(s) along with the region code in the format `<prefix>-<region>-<index>`. |
 | `cluster_size`         | This is the number of linodes to create in each region. |
 | `type`                 | The linode type. See https://api.linode.com/v4/linode/types for the full list of available Linode instance types. |
