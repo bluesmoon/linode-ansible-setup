@@ -156,3 +156,37 @@ Now edit `group_vars/vars` as follows:
 | `sudo_username`        | This is the username of a non-root user to create on your Linode(s) with sudo privileges. This user's password will be whatever you used as `SUDO_PASSWORD` in the vault step above. |
 | `local_cluster_ports`  | A list of ports the open on the firewall between hosts in the same regional cluster. By default this is set to 22 to allow ssh between hosts. |
 | `remote_cluster_ports` | A list of ports the open on the firewall between hosts in the different regional clusters. By default this is set to 22 to allow ssh between hosts. You typically only want to allow encrypted traffic between regions. |
+
+
+## Deployment
+
+Once all your variables are set, you can run the playbook to create your Linode(s) and configure them.
+
+```command
+ansible-playbook provision.yml
+```
+
+This playbook will:
+* create all your linodes in the specified regions
+* add them to the specified firewall,
+* create a VPC and one or more placement groups if required,
+* add the linodes to the VPC and placement groups,
+* add the VPC to the firewall
+* add entries to DNS if required,
+* update the packages on the linodes,
+* set up the sudo user and add the ssh keys to the root and sudo users,
+* reboot the linodes to ensure all changes take effect,
+* update the local `hosts` file so you can use it for subsequent playbooks.
+
+
+## Tear-down
+
+To shut down your linodes and remove them from your account, run the following playbook:
+
+```command
+ansible-playbook shutdown.yml
+```
+
+This will undo most of the steps from the `provision.yml` playbook, but it will not remove the firewall, VPC or placement groups that were created.
+You can do that manually in the Linode Manager if you want to clean up everything, however since these do not incur any charges and are useful for
+future deployments, we leave them around by default.
