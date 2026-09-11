@@ -1,0 +1,7 @@
+- name: get firewall info
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall_info/
+  linode.cloud.firewall_info:
+    label: '{{ firewall_label }}'
+    api_token: '{{ api_token }}'
+  register: firewall_info
+  when: firewall_label|d('') != ''

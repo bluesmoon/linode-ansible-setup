@@ -1,0 +1,11 @@
+# Wait for ssh
+- name: wait for port 22 to become open
+  wait_for:
+    port: 22
+    host: '{{ inventory_hostname }}'
+    search_regex: OpenSSH
+    delay: 10
+  connection: local
+
+- name: gather facts about the hosts
+  setup:

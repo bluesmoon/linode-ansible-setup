@@ -1,0 +1,65 @@
+# VPC
+
+- name: assign vpc label
+  when: vpc_label is not defined or vpc_label|d('', true) == ''
+  set_fact:
+    vpc_label: '{{ instance_prefix }}-cluster'
+
+- name: assign vpc subnet
+  set_fact:
+    vpc_subnet: '10.0.0.0/{{ 32 - (((3*cluster_size) | log(2) | round(0, "ceil"))|int) }}'  # subnet supports an IP range 3x the cluster size
+  when: vpc_subnet is not defined or vpc_subnet|d('', true) == ''
+
+- name: create vpc
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc/
+  linode.cloud.vpc:
+    label: '{{ vpc_label }}-{{ item }}'
+    region: '{{ item }}'
+    api_token: '{{ api_token }}'
+    description: VPC for {{ linode_tags }} in {{ item }} to talk to each other.
+    state: present
+  register: vpc_info
+  when: vpc_label != ''
+  with_items: '{{ region }}'
+
+- name: get vpc subnet info
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc_subnet_info/
+  linode.cloud.vpc_subnet_info:
+    label: '{{ vpc_label }}-{{ item.vpc.region }}-brokers'
+    vpc_id: '{{ item.vpc.id }}'
+    api_token: '{{ api_token }}'
+  register: vpc_subnet_info
+  ignore_errors: true
+  with_items: '{{ vpc_info.results }}'
+  failed_when: false
+  when:
+    - vpc_label != ''
+    - item.vpc.id|d(0) > 0
+
+- name: remove incompatible subnet
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc_subnet/
+  linode.cloud.vpc_subnet:
+    label: '{{ vpc_label }}-{{ item.item.vpc.region }}-brokers'
+    api_token: '{{ api_token }}'
+    state: absent
+    vpc_id: '{{ item.item.vpc.id }}'
+  when:
+    - vpc_label != ''
+    - item is succeeded
+    - (item.msg|d('')) is not match('Failed to get VPC Subnet with label')
+    - item.subnet.ipv4 != vpc_subnet
+  with_items: '{{ vpc_subnet_info.results }}'
+
+- name: create vpc subnet
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc_subnet/
+  linode.cloud.vpc_subnet:
+    ipv4: '{{ vpc_subnet }}'  # subnet supports an IP range 3x the cluster size
+    label: '{{ vpc_label }}-{{ item.vpc.region }}-brokers'
+    api_token: '{{ api_token }}'
+    state: present
+    vpc_id: '{{ item.vpc.id }}'
+  register: vpc_subnet_info
+  when:
+    - vpc_label|d('') != ''
+    - item.vpc.id|d(0) > 0
+  with_items: '{{ vpc_info.results }}'

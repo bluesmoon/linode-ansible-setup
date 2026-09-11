@@ -1,0 +1,9 @@
+# Firewall
+
+- name: info
+  import_tasks: info.yml
+
+
+- name: update
+  import_tasks: update.yml
+  when: not info_only|d(false)

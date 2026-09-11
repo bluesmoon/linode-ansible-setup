@@ -1,0 +1,61 @@
+- name: Apt
+  include_tasks: apt.yml
+  when: ansible_facts['pkg_mgr'] == 'apt'
+
+- name: secure ssh configs
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  with_items:
+    - { regexp: '^\#?PermitRootLogin (yes|no)', line: 'PermitRootLogin prohibit-password' }
+    - { regexp: '^\#?PasswordAuthentication (yes|no)', line: 'PasswordAuthentication no' }
+    - { regexp: '^\#?PubkeyAuthentication (yes|no)', line: 'PubkeyAuthentication yes' }
+  notify: restart ssh
+
+- name: set hard nofile limit
+  community.general.pam_limits:
+    domain: '{{ item.domain }}'
+    limit_type: '-'
+    limit_item: nofile
+    value: '{{ item.value }}'
+  loop:
+    - domain: '*'
+      value: 1048576
+    - domain: 'root'
+      value: 16777216
+
+- name: Check if reboot required
+  stat:
+    path: /var/run/reboot-required
+  register: reboot_required_file
+
+- name: reboot linode
+  reboot:
+  when:
+    - reboot_required_file.stat.exists == true
+
+
+# create sudo username
+- name: create sudo user
+  user:
+        name: "{{ sudo_username }}"
+        shell: /bin/bash
+        groups: sudo
+        password: "{{ sudo_password | string | password_hash('sha512') }}"
+        update_password: on_create
+        expires: -1
+        append: yes
+        generate_ssh_key: yes
+        ssh_key_bits: 4096
+        ssh_key_file: .ssh/id_rsa
+        state: present
+
+- name: adding ssh keys to sudo user
+  copy:
+    src: /root/.ssh/authorized_keys
+    dest: '/home/{{ sudo_username }}/.ssh/authorized_keys'
+    owner: '{{ sudo_username }}'
+    group: '{{ sudo_username }}'
+    mode: 0600
+    remote_src: yes

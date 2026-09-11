@@ -1,0 +1,20 @@
+# Placement Group
+
+- name: set hosts per placement group
+  set_fact:
+    max_hosts_per_pg: 4
+  when: max_hosts_per_pg|d(-1) < 0
+
+- name: create placement group for HA
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/placement_group/
+  linode.cloud.placement_group:
+    label: '{{ instance_prefix }}-{{ item.0 }}-ha-{{ item.1 }}'
+    placement_group_policy: strict
+    placement_group_type: anti_affinity:local
+    region: '{{ item.0 }}'
+    state: present
+    api_token: '{{ api_token }}'
+  register: placement_group_info
+  with_nested:
+    - '{{ region }}'
+    - '{{ range(1, (cluster_size / max_hosts_per_pg) | round(0, "ceil") | int + 1 ) }}'

@@ -1,0 +1,28 @@
+- name: apt update cache
+  apt:
+    update_cache: yes
+
+- name: update grub on ubuntu 26.04
+  when:
+    - ansible_facts['distribution'] == 'Ubuntu'
+    - ansible_facts['distribution_version'] is version('26.04', '>=')
+  script:
+    cmd: scripts/fix-grub.sh
+    creates: /.grub_updated
+
+- name: apt upgrade packages
+  apt:
+    upgrade: safe
+
+- name: install basic packages
+  apt:
+    pkg:
+    - chrony
+    - curl
+    - htop
+    - rsync
+    - python3
+    - python3-passlib
+    - acl
+    state: latest
+  register: package_updates

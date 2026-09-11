@@ -1,0 +1,62 @@
+# Instances
+
+- name: check if instances already created
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance_list/
+  linode.cloud.instance_list:
+    api_token: '{{ api_token }}'
+    filters:
+      - name: label
+        values: "{{ [ instance_prefix ] | product([region]|flatten, query('sequence', count=cluster_size, format='%03d')) | map('join', '-') | list }}"
+    order_by: label
+  register: existing_instances
+
+- name: convert instances to a dict
+  set_fact:
+    existing_instances: "{{ dict(existing_instances.instances | map(attribute='label') | zip(existing_instances.instances)) }}"
+
+
+- name: creating linode servers
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance/
+  linode.cloud.instance:
+    label: '{{ item | join("-") }}'
+    api_token: '{{ api_token }}'
+    type: '{{ type }}'
+    region: '{{ item.1 }}'
+    image: '{{ image }}'
+    # TODO: Can we make this optional and allow key-only access?
+    authorized_keys: '{{ ssh_keys }}'
+    disk_encryption: 'enabled'
+    interfaces:
+      - purpose: 'vpc'
+        subnet_id: '{{ (vpc_subnet_info.results | selectattr("item.vpc.region", "eq", item.1) | map(attribute="subnet.id") | first) }}'
+        primary: true
+        ipv4:
+          nat_1_1: 'any'
+    placement_group:
+      compliant_only: true
+      id: '{{ (placement_group_info.results | selectattr("placement_group.region", "eq", item.1) | map(attribute="placement_group"))[(item[2]|int-1) // max_hosts_per_pg].id }}'
+    private_ip: false
+    ua_prefix: 'bluesmoon/linode-ansible-setup'
+    tags: '{{ linode_tags }}'
+    state: present
+    firewall_id: '{{ (firewall_info.firewall|default({})).id|default(omit) }}'
+  with_nested:
+    - "{{ [instance_prefix] }}"
+    - "{{ region }}"
+    - "{{ query('sequence', count=cluster_size, format='%03d') }}"
+  when: (item | join('-')) not in existing_instances
+
+- name: get info about the instances
+  linode.cloud.instance_info:
+    api_token: '{{ api_token }}'
+    label: '{{ instance_prefix }}-{{ item | join("-") }}'
+  register: host_info
+  with_nested:
+    - '{{ region }}'
+    - "{{ query('sequence', count=cluster_size, format='%03d') }}"
+
+
+- name: create in-memory node list
+  set_fact:
+    all_hosts: "{{ all_hosts|d([]) + [{ 'id': item.instance.id, 'label': item.instance.label, 'ip': item.networking.ipv4.public.0.address, 'rdns': item.networking.ipv4.public.0.rdns, 'region': item.instance.region, 'tags': item.instance.tags }] }}"
+  with_items: '{{ host_info.results }}'

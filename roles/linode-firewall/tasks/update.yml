@@ -1,0 +1,32 @@
+# Update Firewall
+- name: add vpc subnet and hosts to firewall
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall/
+  linode.cloud.firewall:
+    api_token: '{{ api_token }}'
+    label: '{{ firewall_label }}'
+    devices: '{{ firewall_info.firewall.entities | map("dict2items") | map("selectattr", "key", "in", ["id", "type"]) | map("items2dict") }}'
+    rules:
+      inbound: '{{ (firewall_info.firewall.rules.inbound | rejectattr("label", "in", ["accept-" + vpc_label, "accept-cluster-hosts"])) + new_firewall_rules }}'
+      inbound_policy: '{{ firewall_info.firewall.rules.inbound_policy }}'
+      outbound: '{{ firewall_info.firewall.rules.outbound }}'
+      outbound_policy: '{{ firewall_info.firewall.rules.outbound_policy }}'
+    status: '{{ firewall_info.firewall.status }}'
+    tags: '{{ firewall_info.firewall.tags }}'
+    state: 'present'
+  vars:
+    new_firewall_rules:
+      - action: 'ACCEPT'
+        label: 'accept-{{ vpc_label }}'
+        description: 'Allow connections between nodes in the same VPC'
+        protocol: 'TCP'
+        addresses:
+          ipv4: '{{ vpc_subnet }}'
+        ports: '{{ local_cluster_ports|d([22], true) | join(",") }}'
+      - action: 'ACCEPT'
+        label: 'accept-cluster-hosts'
+        description: 'Allow connections between nodes in all clusters'
+        protocol: 'TCP'
+        addresses:
+          ipv4: '{{ all_hosts | map(attribute="ip") | product(["/32"]) | map("join") | list }}'
+        ports: '{{ remote_cluster_ports|d([22], true) | join(",") }}'
+  when: firewall_label|d('') != ''
