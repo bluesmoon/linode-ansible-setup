@@ -1,0 +1,40 @@
+version: 2
+
+updates:
+  # Actions used inside .github/workflows/*.yml
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    open-pull-requests-limit: 5
+
+  # requirements.txt (ansible-core, ansible-lint, yamllint, linode-api4, etc.)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      patch-and-minor:
+        update-types:
+          - "patch"
+          - "minor"
+      # major bumps (e.g. ansible-core, linode-api4) get their own PR -
+      # these can carry breaking module/arg changes and deserve individual review
+    labels:
+      - "dependencies"
+      - "python"
+    open-pull-requests-limit: 5
+
+# NOTE: Dependabot has no native "ansible-galaxy" ecosystem, so collections.yml
+# (community.crypto, linode.cloud, community.general) is NOT covered here.
+# See .github/workflows/collections-check.yml, which checks it on the same
+# weekly cadence and opens an issue when a pin is behind Galaxy's latest.

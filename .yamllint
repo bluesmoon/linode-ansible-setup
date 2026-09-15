@@ -1,0 +1,37 @@
+---
+extends: default
+
+ignore: |
+  .github/
+  group_vars/secret_vars
+
+rules:
+  # group_vars/vars, tasks, etc. commonly exceed 80 chars (long jinja templates,
+  # blockinfile blocks) - ansible-lint has its own opinion on this via
+  # var-naming/line-related rules, don't double up.
+  line-length: disable
+
+  # ansible-vault ciphertext and blockinfile-managed blocks are indented in ways
+  # yamllint's default "consistent" check dislikes; keep it loose but still catch
+  # genuinely broken indentation.
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+    check-multi-line-strings: false
+
+  # ansible-lint (yaml[truthy]) already enforces true/false over yes/no across
+  # the whole production profile - avoid conflicting/duplicate findings here.
+  truthy: disable
+
+  # Playbooks in this repo don't start with a blank line before '---' in every
+  # file consistently yet; not worth blocking merges over.
+  document-start: disable
+
+  comments:
+    min-spaces-from-content: 1
+
+  braces:
+    max-spaces-inside: 1
+
+  brackets:
+    max-spaces-inside: 1
