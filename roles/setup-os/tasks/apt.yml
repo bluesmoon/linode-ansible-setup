@@ -7,7 +7,7 @@
     - ansible_facts['distribution'] == 'Ubuntu'
     - ansible_facts['distribution_version'] is version('26.04', '>=')
   script:
-    cmd: scripts/fix-grub.sh
+    cmd: fix-grub.sh
     creates: /.grub_updated
 
 - name: apt upgrade packages
