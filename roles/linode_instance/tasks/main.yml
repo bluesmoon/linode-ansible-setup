@@ -1,21 +1,21 @@
 # Instances
 
-- name: check if instances already created
+- name: Check if instances already created
   # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance_list/
   linode.cloud.instance_list:
     api_token: '{{ api_token }}'
     filters:
-      - name: label
+      - name: Label
         values: "{{ [ instance_prefix ] | product([region]|flatten, query('sequence', count=cluster_size, format='%03d')) | map('join', '-') | list }}"
     order_by: label
   register: existing_instances
 
-- name: convert instances to a dict
+- name: Convert instances to a dict
   set_fact:
     existing_instances: "{{ dict(existing_instances.instances | map(attribute='label') | zip(existing_instances.instances)) }}"
 
 
-- name: creating linode servers
+- name: Creating linode servers
   # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance/
   linode.cloud.instance:
     label: '{{ item | join("-") }}'
@@ -46,7 +46,7 @@
     - "{{ query('sequence', count=cluster_size, format='%03d') }}"
   when: (item | join('-')) not in existing_instances
 
-- name: get info about the instances
+- name: Get info about the instances
   linode.cloud.instance_info:
     api_token: '{{ api_token }}'
     label: '{{ instance_prefix }}-{{ item | join("-") }}'
@@ -56,7 +56,7 @@
     - "{{ query('sequence', count=cluster_size, format='%03d') }}"
 
 
-- name: create in-memory node list
+- name: Create in-memory node list
   set_fact:
     all_hosts: "{{ all_hosts|d([]) + [{ 'id': item.instance.id, 'label': item.instance.label, 'ip': item.networking.ipv4.public.0.address, 'rdns': item.networking.ipv4.public.0.rdns, 'region': item.instance.region, 'tags': item.instance.tags }] }}"
   with_items: '{{ host_info.results }}'

@@ -1,8 +1,8 @@
-- name: apt update cache
-  apt:
+- name: Apt update cache
+  ansible.builtin.apt:
     update_cache: yes
 
-- name: update grub on ubuntu 26.04
+- name: Update grub on ubuntu 26.04
   when:
     - ansible_facts['distribution'] == 'Ubuntu'
     - ansible_facts['distribution_version'] is version('26.04', '>=')
@@ -10,12 +10,12 @@
     cmd: fix-grub.sh
     creates: /.grub_updated
 
-- name: apt upgrade packages
-  apt:
+- name: Apt upgrade packages
+  ansible.builtin.apt:
     upgrade: safe
 
-- name: install basic packages
-  apt:
+- name: Install basic packages
+  ansible.builtin.apt:
     pkg:
       - chrony
       - curl

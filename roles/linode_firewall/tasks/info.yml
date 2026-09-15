@@ -1,4 +1,4 @@
-- name: get firewall info
+- name: Get firewall info
   # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall_info/
   linode.cloud.firewall_info:
     label: '{{ firewall_label }}'

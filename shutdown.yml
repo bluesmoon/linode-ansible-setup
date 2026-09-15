@@ -1,6 +1,6 @@
 ---
 # shutdown linodes
-- name: shutdown instances
+- name: Shutdown instances
   hosts: localhost
   vars_files:
     - group_vars/vars
@@ -10,7 +10,7 @@
 
   # DNS
 
-    - name: check if hosts are in DNS
+    - name: Check if hosts are in DNS
       # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_info/
       linode.cloud.domain_info:
         api_token: '{{ api_token }}'
@@ -20,7 +20,7 @@
         - domain_name|d('', true) != ''
       register: domain_info
 
-    - name: remove hosts from dns
+    - name: Remove hosts from dns
       # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_record/
       linode.cloud.domain_record:
         api_token: '{{ api_token }}'
@@ -37,17 +37,17 @@
 
     # Instances
 
-    - name: get list of instances
+    - name: Get list of instances
       # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance_list/
       linode.cloud.instance_list:
         api_token: '{{ api_token }}'
         filters:
-          - name: label
+          - name: Label
             values: "{{ [ instance_prefix ] | product([region]|flatten, query('sequence', count=cluster_size, format='%03d')) | map('join', '-') | list }}"
         order_by: label
       register: existing_instances
 
-    - name: shutdown nodes
+    - name: Shutdown nodes
       # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance/
       linode.cloud.instance:
         label: '{{ item.label }}'
@@ -59,7 +59,7 @@
 
     # Firewall
 
-    - name: get updated firewall info
+    - name: Get updated firewall info
       # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall_info/
       linode.cloud.firewall_info:
         label: '{{ firewall_label }}'
@@ -69,7 +69,7 @@
         - firewall_label is defined
         - firewall_label|d('', true) != ''
 
-    - name: remove hosts from firewall
+    - name: Remove hosts from firewall
       # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall/
       linode.cloud.firewall:
         api_token: '{{ api_token }}'
@@ -87,13 +87,13 @@
         - firewall_label is defined
         - firewall_label|d('', true) != ''
 
-    - name: update group_vars
+    - name: Update group_vars
       blockinfile:
         path: ./group_vars/vars
         marker: "# {mark} INSTANCE VARS"
         state: absent
 
-    - name: remove nodes from inventory
+    - name: Remove nodes from inventory
       blockinfile:
         path: ./hosts
         marker: "# {mark} LINODE INSTANCES"

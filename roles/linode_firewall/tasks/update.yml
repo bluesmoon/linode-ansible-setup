@@ -1,5 +1,5 @@
 # Update Firewall
-- name: add vpc subnet and hosts to firewall
+- name: Add vpc subnet and hosts to firewall
   # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall/
   linode.cloud.firewall:
     api_token: '{{ api_token }}'

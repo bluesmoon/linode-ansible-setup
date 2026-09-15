@@ -2,7 +2,7 @@
   include_tasks: apt.yml
   when: ansible_facts['pkg_mgr'] == 'apt'
 
-- name: secure ssh configs
+- name: Secure ssh configs
   lineinfile:
     path: /etc/ssh/sshd_config
     regexp: "{{ item.regexp }}"
@@ -13,7 +13,7 @@
     - { regexp: '^\#?PubkeyAuthentication (yes|no)', line: 'PubkeyAuthentication yes' }
   notify: restart ssh
 
-- name: set hard nofile limit
+- name: Set hard nofile limit
   community.general.pam_limits:
     domain: '{{ item.domain }}'
     limit_type: '-'
@@ -30,14 +30,14 @@
     path: /var/run/reboot-required
   register: reboot_required_file
 
-- name: reboot linode
+- name: Reboot linode
   reboot:
   when:
     - reboot_required_file.stat.exists == true
 
 
 # create sudo username
-- name: create sudo user
+- name: Create sudo user
   user:
     name: "{{ sudo_username }}"
     shell: /bin/bash
@@ -51,7 +51,7 @@
     ssh_key_file: .ssh/id_rsa
     state: present
 
-- name: adding ssh keys to sudo user
+- name: Adding ssh keys to sudo user
   copy:
     src: /root/.ssh/authorized_keys
     dest: '/home/{{ sudo_username }}/.ssh/authorized_keys'

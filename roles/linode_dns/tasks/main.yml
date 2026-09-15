@@ -1,12 +1,12 @@
 # DNS
-- name: check if hosts are in DNS
+- name: Check if hosts are in DNS
   # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_info/
   linode.cloud.domain_info:
     api_token: '{{ api_token }}'
     domain: '{{ domain_name }}'
   register: domain_info
 
-- name: remove old hosts, brokers, and controllers from dns
+- name: Remove old hosts, brokers, and controllers from dns
   # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_record/
   linode.cloud.domain_record:
     api_token: '{{ api_token }}'
@@ -23,7 +23,7 @@
     - "{{ domain_info.records }}"
     - "{{ region }}"
 
-- name: add new hosts to dns
+- name: Add new hosts to dns
   # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_record/
   linode.cloud.domain_record:
     api_token: '{{ api_token }}'

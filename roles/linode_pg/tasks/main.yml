@@ -1,11 +1,11 @@
 # Placement Group
 
-- name: set hosts per placement group
+- name: Set hosts per placement group
   set_fact:
     max_hosts_per_pg: 4
   when: max_hosts_per_pg|d(-1) < 0
 
-- name: create placement group for HA
+- name: Create placement group for HA
   # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/placement_group/
   linode.cloud.placement_group:
     label: '{{ instance_prefix }}-{{ item.0 }}-ha-{{ item.1 }}'

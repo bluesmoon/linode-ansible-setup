@@ -5,7 +5,7 @@
 
 # Region
 
-- name: check if region supports all necessary features
+- name: Check if region supports all necessary features
   # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/region_info/
   # https://techdocs.akamai.com/cloud-computing/docs/how-to-choose-a-data-center#product-availability
   linode.cloud.region_info:

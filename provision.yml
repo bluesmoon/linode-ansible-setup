@@ -1,30 +1,30 @@
 ---
 # create linode server and client instances
-- name: create linode instances
+- name: Create linode instances
   hosts: localhost
   vars_files:
     - group_vars/vars
     - group_vars/secret_vars
 
   pre_tasks:
-    - name: check if linode api token is set
+    - name: Check if linode api token is set
       fail:
         msg: "api_token is not set. Please set it in group_vars/secret_vars."
       when: api_token is not defined or api_token | d('', true) == ''
 
-    - name: check if linode region is set
+    - name: Check if linode region is set
       fail:
         msg: "region is not set to a list of regions. Please set it in group_vars/vars."
       when: region is not defined or
             region | type_debug != 'list' or
             region | length < 1
 
-    - name: check if linode instance type is set
+    - name: Check if linode instance type is set
       fail:
         msg: "type is not set. Please set it in group_vars/vars."
       when: type is not defined or type | d('', true) == ''
 
-    - name: check if ssh_keys is set
+    - name: Check if ssh_keys is set
       fail:
         msg: "ssh_keys or ssh_privatekey are not set. Please set them in group_vars/vars."
       when: ssh_keys is not defined or
@@ -46,7 +46,7 @@
   tasks:
 
     # Update inventory
-    - name: update group_vars
+    - name: Update group_vars
       blockinfile:
         path: ./group_vars/vars
         marker: "# {mark} INSTANCE VARS"
@@ -67,14 +67,14 @@
                   {%- endif %}
               {%- endfor %}
 
-    - name: create hosts file if it does not exist
+    - name: Create hosts file if it does not exist
       ansible.builtin.file:
         path: ./hosts
         state: touch
         modification_time: preserve
         access_time: preserve
 
-    - name: add nodes to inventory
+    - name: Add nodes to inventory
       blockinfile:
         path: ./hosts
         marker: "# {mark} LINODE INSTANCES"
@@ -91,7 +91,7 @@
           {{ r }}
           {%- endfor %}
 
-    - name: add hosts to in-memory inventory
+    - name: Add hosts to in-memory inventory
       add_host:
         name: '{{ item.rdns }}'
         groups: '{{ item.region }}'
