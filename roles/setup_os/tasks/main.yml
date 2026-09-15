@@ -33,7 +33,7 @@
 - name: Reboot linode
   reboot:
   when:
-    - reboot_required_file.stat.exists == true
+    - reboot_required_file.stat.exists
 
 
 # create sudo username
@@ -57,5 +57,5 @@
     dest: '/home/{{ sudo_username }}/.ssh/authorized_keys'
     owner: '{{ sudo_username }}'
     group: '{{ sudo_username }}'
-    mode: 0600
+    mode: '0o600'
     remote_src: yes
