@@ -64,7 +64,7 @@ Next we will set up your local environment to run the ansible playbooks.
 
 #### 1. Get the right version of python
 
-If you're on MacOS, you most likely have an older version of Python whereas the scripts used in this project require at least Python 3.11.
+If you're on MacOS, you most likely have an older version of Python whereas the scripts used in this project require at least Python 3.13.
 The latest version as of this writing (September 2026) is 3.14 and 3.15 is expected in October 2026.
 The least intrusive way to install a new version of Python is to use Rye.
 
