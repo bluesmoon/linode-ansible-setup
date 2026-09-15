@@ -3,8 +3,8 @@
 - name: create linode instances
   hosts: localhost
   vars_files:
-      - group_vars/vars
-      - group_vars/secret_vars
+    - group_vars/vars
+    - group_vars/secret_vars
 
   pre_tasks:
     - name: check if linode api token is set
@@ -44,63 +44,63 @@
         - domain_service is not defined or domain_service | d('linode', true) == 'linode'
 
   tasks:
-  # Update inventory
 
-  - name: update group_vars
-    blockinfile:
-      path: ./group_vars/vars
-      marker: "# {mark} INSTANCE VARS"
-      block: |
-        #jinja2: trim_blocks:False
-        node_data:
-          server:
-            {%- for instance in host_info.results %}
-            - name: {{ instance.instance.label }}
-              instance:
-                hostname: {{ instance.instance.label }}{% if domain_name != '' %}.{{ domain_name }}{% endif %}
-                region: {{ instance.instance.region }}
-                ip_pub1: {{ instance.networking.ipv4.public.0.address }}
-                ip_priv1: {{ instance.networking.ipv4.vpc.0.address }}
-                {%- if domain_name != '' %}
-                aliases:
-                  - {{ instance.instance.label }}.{{ domain_name }}
-                {%- endif %}
-            {%- endfor %}
+    # Update inventory
+    - name: update group_vars
+      blockinfile:
+        path: ./group_vars/vars
+        marker: "# {mark} INSTANCE VARS"
+        block: |
+          #jinja2: trim_blocks:False
+          node_data:
+            server:
+              {%- for instance in host_info.results %}
+              - name: {{ instance.instance.label }}
+                instance:
+                  hostname: {{ instance.instance.label }}{% if domain_name != '' %}.{{ domain_name }}{% endif %}
+                  region: {{ instance.instance.region }}
+                  ip_pub1: {{ instance.networking.ipv4.public.0.address }}
+                  ip_priv1: {{ instance.networking.ipv4.vpc.0.address }}
+                  {%- if domain_name != '' %}
+                  aliases:
+                    - {{ instance.instance.label }}.{{ domain_name }}
+                  {%- endif %}
+              {%- endfor %}
 
-  - name: create hosts file if it does not exist
-    ansible.builtin.file:
-      path: ./hosts
-      state: touch
-      modification_time: preserve
-      access_time: preserve
+    - name: create hosts file if it does not exist
+      ansible.builtin.file:
+        path: ./hosts
+        state: touch
+        modification_time: preserve
+        access_time: preserve
 
-  - name: add nodes to inventory
-    blockinfile:
-      path: ./hosts
-      marker: "# {mark} LINODE INSTANCES"
-      block: |
-        #jinja2: trim_blocks:False
-        {%- for r in [region]|flatten %}
-        [{{ r }}]
-        {%- for instance in host_info.results | selectattr('instance.region', 'eq', r) %}
-        {{ instance.networking.ipv4.public.0.rdns }} region='{{ instance.instance.region }}'
-        {%- endfor %}
-        {% endfor %}
-        [all:children]
-        {%- for r in [region]|flatten %}
-        {{ r }}
-        {%- endfor %}
+    - name: add nodes to inventory
+      blockinfile:
+        path: ./hosts
+        marker: "# {mark} LINODE INSTANCES"
+        block: |
+          #jinja2: trim_blocks:False
+          {%- for r in [region]|flatten %}
+          [{{ r }}]
+          {%- for instance in host_info.results | selectattr('instance.region', 'eq', r) %}
+          {{ instance.networking.ipv4.public.0.rdns }} region='{{ instance.instance.region }}'
+          {%- endfor %}
+          {% endfor %}
+          [all:children]
+          {%- for r in [region]|flatten %}
+          {{ r }}
+          {%- endfor %}
 
-  - name: add hosts to in-memory inventory
-    add_host:
-      name: '{{ item.rdns }}'
-      groups: '{{ item.region }}'
-      ansible_host: '{{ item.ip }}'
-      ansible_user: 'root'
-      ansible_ssh_private_key_file: '{{ ssh_privatekey }}'
-      ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
-      ansible_python_interpreter: '/usr/bin/python3'
-    with_items: '{{ all_hosts }}'
+    - name: add hosts to in-memory inventory
+      add_host:
+        name: '{{ item.rdns }}'
+        groups: '{{ item.region }}'
+        ansible_host: '{{ item.ip }}'
+        ansible_user: 'root'
+        ansible_ssh_private_key_file: '{{ ssh_privatekey }}'
+        ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+        ansible_python_interpreter: '/usr/bin/python3'
+      with_items: '{{ all_hosts }}'
 
 
 # The rest of the playbook can execute in parallel on the instances
@@ -108,8 +108,8 @@
   gather_facts: false
 
   vars_files:
-      - group_vars/vars
-      - group_vars/secret_vars
+    - group_vars/vars
+    - group_vars/secret_vars
 
   roles:
     - wait-for-ssh

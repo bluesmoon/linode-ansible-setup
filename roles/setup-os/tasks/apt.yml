@@ -17,12 +17,12 @@
 - name: install basic packages
   apt:
     pkg:
-    - chrony
-    - curl
-    - htop
-    - rsync
-    - python3
-    - python3-passlib
-    - acl
+      - chrony
+      - curl
+      - htop
+      - rsync
+      - python3
+      - python3-passlib
+      - acl
     state: latest
   register: package_updates
