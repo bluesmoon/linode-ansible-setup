@@ -71,6 +71,7 @@
       ansible.builtin.file:
         path: ./hosts
         state: touch
+        mode: '0o644'
         modification_time: preserve
         access_time: preserve
 
@@ -104,7 +105,8 @@
 
 
 # The rest of the playbook can execute in parallel on the instances
-- hosts: '{{ hostvars.localhost.all_hosts | map(attribute="rdns") | list }}'
+- name: Configure linode instances
+  hosts: '{{ hostvars.localhost.all_hosts | map(attribute="rdns") | list }}'
   gather_facts: false
 
   vars_files:
