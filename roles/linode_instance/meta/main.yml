@@ -1,0 +1,6 @@
+dependencies:
+  - role: linode_vpc
+  - role: linode_pg
+  - role: linode_firewall
+    vars:
+      info_only: true

@@ -34,10 +34,10 @@
 
 
   roles:
-    - linode-env
-    - linode-instance
-    - linode-firewall
-    - role: linode-dns
+    - linode_env
+    - linode_instance
+    - linode_firewall
+    - role: linode_dns
       when:
         - domain_name is defined
         - domain_name | d('', true) != ''
@@ -112,5 +112,5 @@
     - group_vars/secret_vars
 
   roles:
-    - wait-for-ssh
-    - setup-os
+    - wait_for_ssh
+    - setup_os

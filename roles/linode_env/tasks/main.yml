@@ -1,5 +1,5 @@
 ---
-# roles/linode-env/tasks
+# roles/linode_env/tasks
 
 # fetch details about the linode enviroment. Currently only fetches region info for configured regions.
 
