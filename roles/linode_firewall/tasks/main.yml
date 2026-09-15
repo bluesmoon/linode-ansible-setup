@@ -1,9 +1,9 @@
 # Firewall
 
 - name: Info
-  import_tasks: info.yml
+  ansible.builtin.import_tasks: info.yml
 
 
 - name: Update
-  import_tasks: update.yml
+  ansible.builtin.import_tasks: update.yml
   when: not info_only|d(false)

@@ -88,13 +88,13 @@
         - firewall_label|d('', true) != ''
 
     - name: Update group_vars
-      blockinfile:
+      ansible.builtin.blockinfile:
         path: ./group_vars/vars
         marker: "# {mark} INSTANCE VARS"
         state: absent
 
     - name: Remove nodes from inventory
-      blockinfile:
+      ansible.builtin.blockinfile:
         path: ./hosts
         marker: "# {mark} LINODE INSTANCES"
         state: absent

@@ -6,7 +6,7 @@
   when:
     - ansible_facts['distribution'] == 'Ubuntu'
     - ansible_facts['distribution_version'] is version('26.04', '>=')
-  script:
+  ansible.builtin.script:
     cmd: fix-grub.sh
     creates: /.grub_updated
 

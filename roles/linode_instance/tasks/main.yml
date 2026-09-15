@@ -11,7 +11,7 @@
   register: existing_instances
 
 - name: Convert instances to a dict
-  set_fact:
+  ansible.builtin.set_fact:
     existing_instances: "{{ dict(existing_instances.instances | map(attribute='label') | zip(existing_instances.instances)) }}"
 
 
@@ -57,6 +57,6 @@
 
 
 - name: Create in-memory node list
-  set_fact:
+  ansible.builtin.set_fact:
     all_hosts: "{{ all_hosts|d([]) + [{ 'id': item.instance.id, 'label': item.instance.label, 'ip': item.networking.ipv4.public.0.address, 'rdns': item.networking.ipv4.public.0.rdns, 'region': item.instance.region, 'tags': item.instance.tags }] }}"
   with_items: '{{ host_info.results }}'

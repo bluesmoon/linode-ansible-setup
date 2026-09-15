@@ -1,9 +1,9 @@
 - name: Apt
-  include_tasks: apt.yml
+  ansible.builtin.include_tasks: apt.yml
   when: ansible_facts['pkg_mgr'] == 'apt'
 
 - name: Secure ssh configs
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
     regexp: "{{ item.regexp }}"
     line: "{{ item.line }}"
@@ -26,19 +26,19 @@
       value: 16777216
 
 - name: Check if reboot required
-  stat:
+  ansible.builtin.stat:
     path: /var/run/reboot-required
   register: reboot_required_file
 
 - name: Reboot linode
-  reboot:
+  ansible.builtin.reboot:
   when:
     - reboot_required_file.stat.exists
 
 
 # create sudo username
 - name: Create sudo user
-  user:
+  ansible.builtin.user:
     name: "{{ sudo_username }}"
     shell: /bin/bash
     groups: sudo
@@ -52,7 +52,7 @@
     state: present
 
 - name: Adding ssh keys to sudo user
-  copy:
+  ansible.builtin.copy:
     src: /root/.ssh/authorized_keys
     dest: '/home/{{ sudo_username }}/.ssh/authorized_keys'
     owner: '{{ sudo_username }}'

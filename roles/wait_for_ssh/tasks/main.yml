@@ -1,6 +1,6 @@
 # Wait for ssh
 - name: Wait for port 22 to become open
-  wait_for:
+  ansible.builtin.wait_for:
     port: 22
     host: '{{ inventory_hostname }}'
     search_regex: OpenSSH
@@ -8,4 +8,4 @@
   connection: local
 
 - name: Gather facts about the hosts
-  setup:
+  ansible.builtin.setup:

@@ -1,7 +1,7 @@
 # Placement Group
 
 - name: Set hosts per placement group
-  set_fact:
+  ansible.builtin.set_fact:
     max_hosts_per_pg: 4
   when: max_hosts_per_pg|d(-1) < 0
 
