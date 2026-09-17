@@ -1,0 +1,55 @@
+---
+# shutdown linodes
+- name: Shutdown instances
+  hosts: localhost
+  vars_files:
+    - group_vars/vars
+    - group_vars/secret_vars
+
+  roles:
+    - role: linode_env
+
+    - role: linode_dns
+      linode_dns_mode: absent
+      when:
+        - domain_name is defined
+        - domain_name|d('', true) != ''
+        - domain_service is not defined or domain_service | d('linode', true) == 'linode'
+
+    - role: linode_instance
+      linode_instance_mode: absent
+
+    - role: linode_firewall
+      when:
+        - firewall_label is defined
+        - firewall_label | d('', true) != ''
+      linode_firewall_mode: absent
+
+
+  tasks:
+
+    - name: Update group_vars
+      ansible.builtin.blockinfile:
+        path: ./group_vars/vars
+        marker: "# {mark} INSTANCE VARS"
+        state: absent
+
+    - name: Remove nodes from inventory
+      ansible.builtin.blockinfile:
+        path: ./hosts
+        marker: "# {mark} LINODE INSTANCES"
+        state: absent
+
+    - name: Remove nodes from ssh config
+      ansible.builtin.blockinfile:
+        path: ./ssh_config
+        marker: "# {mark} LINODE INSTANCES"
+        state: absent
+
+    - name: Remove nodes from known_hosts
+      ansible.builtin.known_hosts:
+        name: "{{ item.instance.ip_pub1 }}"
+        state: absent
+        path: ~/.ssh/known_hosts
+      with_items: "{{ node_data.server | d([]) }}"
+      when: node_data is defined and node_data.server is defined

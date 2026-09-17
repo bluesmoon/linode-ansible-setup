@@ -1,0 +1,156 @@
+---
+# create linode server and client instances
+- name: Create linode instances
+  hosts: localhost
+  vars_files:
+    - group_vars/vars
+    - group_vars/secret_vars
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - api_token is defined and api_token | d('', true) != ''
+          - region is defined and region | type_debug == 'list' and region | length >= 1
+          - cluster_size is defined and cluster_size | int(0) >= 1
+          - type is defined and type | d('', true) != ''
+          - ssh_keys is defined and ssh_keys | type_debug == 'list' and ssh_keys | length >= 1
+          - ssh_privatekey is defined and ssh_privatekey | d('', true) != ''
+          - sudo_username is defined and sudo_username | d('', true) != ''
+        fail_msg: |
+          Missing or invalid required configuration:
+          - api_token: required in group_vars/secret_vars
+          - region: required list of regions in group_vars/vars
+          - cluster_size: must be positive integer >= 1
+          - type: required instance type in group_vars/vars
+          - ssh_keys: required list in group_vars/vars
+          - ssh_privatekey: required in group_vars/vars
+          - sudo_username: required in group_vars/vars
+
+  roles:
+    - linode_env
+    - linode_instance
+    - role: linode_firewall
+      when:
+        - firewall_label is defined
+        - firewall_label | d('', true) != ''
+    - role: linode_dns
+      when:
+        - domain_name is defined
+        - domain_name | d('', true) != ''
+        - domain_service is not defined or domain_service | d('linode', true) == 'linode'
+
+  tasks:
+
+    # Update inventory
+    - name: Update group_vars
+      ansible.builtin.blockinfile:
+        path: ./group_vars/vars
+        marker: "# {mark} INSTANCE VARS"
+        block: |
+          #jinja2: trim_blocks:False
+          node_data:
+            server:
+              {%- for instance in linode_instance_host_info.results %}
+              - name: {{ instance.instance.label }}
+                instance:
+                  hostname: {{ instance.instance.label }}{% if domain_name != '' %}.{{ domain_name }}{% endif %}
+                  region: {{ instance.instance.region }}
+                  ip_pub1: {{ instance.networking.ipv4.public.0.address }}
+                  ip_priv1: {{ instance.networking.ipv4.vpc.0.address }}
+                  {%- if domain_name != '' %}
+                  aliases:
+                    - {{ instance.instance.label }}.{{ domain_name }}
+                  {%- endif %}
+              {%- endfor %}
+
+    - name: Create hosts file if it does not exist
+      ansible.builtin.file:
+        path: ./hosts
+        state: touch
+        mode: '0o644'
+        modification_time: preserve
+        access_time: preserve
+
+    - name: Add nodes to inventory
+      ansible.builtin.blockinfile:
+        path: ./hosts
+        marker: "# {mark} LINODE INSTANCES"
+        block: |
+          #jinja2: trim_blocks:False
+          {%- for r in [region]|flatten %}
+          [{{ r }}]
+          {%- for instance in linode_instance_host_info.results | selectattr('instance.region', 'eq', r) %}
+          {{ instance.networking.ipv4.public.0.rdns }} region='{{ instance.instance.region }}'
+          {%- endfor %}
+          {% endfor %}
+          [all:children]
+          {%- for r in [region]|flatten %}
+          {{ r }}
+          {%- endfor %}
+
+    - name: Add hosts to in-memory inventory
+      ansible.builtin.add_host:
+        name: '{{ item.rdns }}'
+        groups:
+          - '{{ item.region }}'
+          - all
+        ansible_host: '{{ item.ip }}'
+        ansible_user: 'root'
+        ansible_ssh_private_key_file: '{{ ssh_privatekey }}'
+        ansible_python_interpreter: '/usr/bin/python3'
+      with_items: '{{ linode_instance_all_hosts }}'
+
+    - name: Create ssh_config file if it does not exist
+      ansible.builtin.file:
+        path: ./ssh_config
+        state: touch
+        mode: '0o644'
+        modification_time: preserve
+        access_time: preserve
+
+    - name: Add hosts to ssh config
+      ansible.builtin.blockinfile:
+        path: ./ssh_config
+        marker: "# {mark} LINODE INSTANCES"
+        block: |
+          #jinja2: trim_blocks:False
+          {%- for instance in linode_instance_all_hosts %}
+          # {{ instance.label }}
+          Host {{ instance.label }}
+            HostName {{ instance.ip }}
+            User root
+            IdentityFile {{ ssh_privatekey }}
+            PasswordAuthentication no
+            VerifyHostKeyDNS ask
+
+          Host {{ instance.label }}-sudo
+            HostName {{ instance.ip }}
+            User {{ sudo_username }}
+            IdentityFile {{ ssh_privatekey }}
+            PasswordAuthentication no
+            VerifyHostKeyDNS ask
+
+          {% endfor %}
+
+    - name: Display ssh config usage instructions
+      ansible.builtin.debug:
+        msg: |
+          SSH config file has been generated at ./ssh_config
+          To use it, add the following line to your ~/.ssh/config file:
+            Include {{ ansible_facts['env'].PWD }}/ssh_config
+          Or copy the contents into your ~/.ssh/config manually.
+
+
+# The rest of the playbook can execute in parallel on the instances
+- name: Configure linode instances
+  hosts: all
+  gather_facts: false
+
+  vars_files:
+    - group_vars/vars
+    - group_vars/secret_vars
+
+  roles:
+    - wait_for_ssh
+    - setup_os
