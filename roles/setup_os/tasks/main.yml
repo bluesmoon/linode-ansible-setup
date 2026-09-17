@@ -1,0 +1,93 @@
+- name: Use nofile_limits if provided
+  ansible.builtin.set_fact:
+    setup_os_nofile_limits: '{{ nofile_limits }}'
+  when: nofile_limits is defined
+
+- name: Set sudo group based on distribution
+  ansible.builtin.set_fact:
+    setup_os_sudo_group: '{{ "sudo" if ansible_facts["pkg_mgr"] == "apt" else "wheel" }}'
+
+- name: Debian-like systems (apt)
+  ansible.builtin.include_tasks: apt.yml
+  when: ansible_facts['pkg_mgr'] == 'apt'
+
+- name: Red Hat-like systems (dnf)
+  ansible.builtin.include_tasks: dnf.yml
+  when: ansible_facts['pkg_mgr'] == 'dnf'
+
+- name: Alpine Linux (apk)
+  ansible.builtin.include_tasks: apk.yml
+  when: ansible_facts['pkg_mgr'] == 'apk'
+
+- name: Arch Linux (pacman)
+  ansible.builtin.include_tasks: pacman.yml
+  when: ansible_facts['pkg_mgr'] == 'pacman'
+
+- name: OpenSUSE (zypper)
+  ansible.builtin.include_tasks: zypper.yml
+  when: ansible_facts['pkg_mgr'] == 'zypper'
+
+- name: Secure ssh configs
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  with_items:
+    - { regexp: '^\#?PermitRootLogin (yes|no)', line: 'PermitRootLogin prohibit-password' }
+    - { regexp: '^\#?PasswordAuthentication (yes|no)', line: 'PasswordAuthentication no' }
+    - { regexp: '^\#?PubkeyAuthentication (yes|no)', line: 'PubkeyAuthentication yes' }
+  notify: Restart ssh
+
+- name: Set hard nofile limit
+  community.general.pam_limits:
+    domain: '{{ item.domain }}'
+    limit_type: '-'
+    limit_item: nofile
+    value: '{{ item.value }}'
+  loop: '{{ setup_os_nofile_limits }}'
+
+- name: Check if reboot required (Debian-like systems)
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: setup_os_reboot_required_file
+  when: ansible_facts['pkg_mgr'] == 'apt'
+
+- name: Check if kernel update available (Red Hat-like systems)
+  ansible.builtin.shell:
+    cmd: 'set -o pipefail; latest=$(rpm -q --last kernel | head -1 | cut -d" " -f1 | sed "s/kernel-//"); running=$(uname -r); [[ "$latest" != "$running" ]]'
+  register: setup_os_dnf_reboot_required
+  changed_when: false
+  failed_when: false
+  when: ansible_facts['pkg_mgr'] == 'dnf'
+
+- name: Reboot linode
+  ansible.builtin.reboot:
+  when:
+    - |
+      (ansible_facts['pkg_mgr'] == 'apt' and setup_os_reboot_required_file.stat is defined and setup_os_reboot_required_file.stat.exists) or
+      (ansible_facts['pkg_mgr'] == 'dnf' and setup_os_dnf_reboot_required.rc == 0)
+
+
+# create sudo username
+- name: Create sudo user
+  ansible.builtin.user:
+    name: "{{ sudo_username }}"
+    shell: /bin/bash
+    groups: "{{ setup_os_sudo_group }}"
+    password: "{{ sudo_password | string | password_hash('sha512') }}"
+    update_password: on_create
+    expires: -1
+    append: yes
+    generate_ssh_key: yes
+    ssh_key_bits: 4096
+    ssh_key_file: .ssh/id_rsa
+    state: present
+
+- name: Adding ssh keys to sudo user
+  ansible.builtin.copy:
+    src: /root/.ssh/authorized_keys
+    dest: '/home/{{ sudo_username }}/.ssh/authorized_keys'
+    owner: '{{ sudo_username }}'
+    group: '{{ sudo_username }}'
+    mode: '0o600'
+    remote_src: yes

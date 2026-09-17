@@ -1,0 +1,48 @@
+---
+argument_specs:
+  main:
+    short_description: Configure operating system security and resource limits
+    description:
+      - Installs required OS packages and security patches across multiple Linux distributions
+      - Supports Debian-like (Ubuntu, Debian), Red Hat-like (RHEL, Rocky, AlmaLinux, Fedora, CentOS), Alpine, Arch, and openSUSE
+      - Hardens SSH configuration (disables password auth, enables key-only access)
+      - Sets hard file descriptor limits for system performance
+      - Creates sudo user with SSH key authentication
+      - Optionally triggers reboot if kernel updates required
+    options:
+      ansible_facts:
+        description: Ansible facts including pkg_mgr (apt, dnf, apk, pacman, zypper) populated by setup task
+        type: dict
+        required: true
+      setup_os_nofile_limits:
+        description: List of file descriptor limit configurations
+        type: list
+        elements: dict
+        required: false
+        default:
+          - domain: '*'
+            value: '1048576'
+          - domain: 'root'
+            value: '16777216'
+      nofile_limits:
+        description: Override nofile limits if provided in group_vars
+        type: list
+        elements: dict
+        required: false
+      sudo_username:
+        description: Username for sudo-enabled user account
+        type: str
+        required: true
+      sudo_password:
+        description: Password for sudo user (hashed with SHA-512)
+        type: str
+        required: true
+      ssh_keys:
+        description: SSH public keys to authorize for sudo user
+        type: list
+        elements: str
+        required: true
+      ssh_privatekey:
+        description: Path to SSH private key file on ansible controller
+        type: str
+        required: true

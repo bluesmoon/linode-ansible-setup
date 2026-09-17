@@ -1,0 +1,5 @@
+setup_os_nofile_limits:
+  - domain: '*'
+    value: 1048576
+  - domain: 'root'
+    value: 16777216

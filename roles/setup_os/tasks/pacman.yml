@@ -1,0 +1,20 @@
+- name: Pacman sync database
+  community.general.pacman:
+    update_cache: yes
+
+- name: Pacman upgrade packages
+  community.general.pacman:
+    upgrade: yes
+
+- name: Install basic packages
+  community.general.pacman:
+    pkg:
+      - chrony
+      - curl
+      - htop
+      - rsync
+      - python
+      - python-passlib
+      - acl
+    state: present
+  register: setup_os_package_updates

@@ -1,0 +1,30 @@
+---
+argument_specs:
+  main:
+    short_description: Wait for SSH availability and manage host key verification
+    description:
+      - Waits for SSH port 22 to become available on each instance
+      - Scans and caches SSH host keys for known_hosts file (RFC4255 SSHFP support)
+      - Generates SSH host fingerprints and publishes as DNS SSHFP records if configured
+      - Enables strict SSH host key verification without requiring manual key acceptance
+      - Runs on remote hosts for fact gathering after infrastructure is ready
+    options:
+      domain_name:
+        description: DNS domain name for SSHFP record publishing
+        type: str
+        required: false
+      domain_service:
+        description: DNS provider - only 'linode' DNS operations are performed
+        type: str
+        required: false
+        default: linode
+        choices:
+          - linode
+      ttl_sec:
+        description: TTL in seconds for SSHFP DNS records
+        type: int
+        required: false
+      node_data:
+        description: Instance metadata including names and IPs (populated by linode_instance role)
+        type: dict
+        required: false

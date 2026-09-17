@@ -1,0 +1,22 @@
+- name: Dnf update cache
+  ansible.builtin.dnf:
+    update_cache: yes
+
+- name: Dnf upgrade packages
+  ansible.builtin.dnf:
+    name: '*'
+    state: present
+    update_only: yes
+
+- name: Install basic packages
+  ansible.builtin.dnf:
+    pkg:
+      - chrony
+      - curl
+      - htop
+      - rsync
+      - python3
+      - python3-passlib
+      - acl
+    state: present
+  register: setup_os_package_updates

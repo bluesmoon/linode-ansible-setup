@@ -1,0 +1,20 @@
+- name: Apk update repositories
+  community.general.apk:
+    update_cache: yes
+
+- name: Apk upgrade packages
+  community.general.apk:
+    upgrade: yes
+
+- name: Install basic packages
+  community.general.apk:
+    pkg:
+      - chrony
+      - curl
+      - htop
+      - rsync
+      - python3
+      - py3-passlib
+      - acl
+    state: present
+  register: setup_os_package_updates
