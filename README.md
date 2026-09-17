@@ -133,3 +133,96 @@ You may store this file in your shared vault for other members of your team to u
 
 The file included as part of this repository contains the example secrets used above and do not actually work.
 (You need a valid Linode Token before starting anything).
+
+#### 4. Set vars for your Linode(s)
+
+Now edit `group_vars/vars` as follows:
+
+
+| Variable               | Required | Description |
+|------------------------|:--------:|--------------|
+| `ssh_keys`             | ✓        | This is a list of one or more ssh public keys that will be added to the root and sudo users on your Linode(s).  You should remove the default fake keys and add your own public key(s) here. |
+| `ssh_privatekey`       | ✓        | This is the private key that corresponds to one of the public key(s) you added above. This is used by ansible to connect to your Linode(s) and run host commands from the playbook. |
+| `instance_prefix`      | ✓        | This is a prefix that will be used to name your Linode(s) along with the region code in the format `<prefix>-<region>-<index>`. |
+| `cluster_size`         | ✓        | This is the number of linodes to create in each region. |
+| `type`                 | ✓        | The linode type. See https://api.linode.com/v4/linode/types for the full list of available Linode instance types. |
+| `region`               | ✓        | A list of one or more regions to create your Linode(s) in. See https://api.linode.com/v4/regions for the full list of available regions and make sure your linode type is supported in those regions. |
+| `image`                | ✓        | The image to use. |
+| `sudo_username`        | ✓        | This is the username of a non-root user to create on your Linode(s) with sudo privileges. This user's password will be whatever you used as `SUDO_PASSWORD` in the vault step above. |
+| `firewall_label`       |          | The label of the firewall you created above. This is used to apply the firewall to your Linode(s) as soon as they are created. |
+| `linode_tags`          |          | An optional list of tags to apply to your Linode(s). Tags are useful for grouping and filtering your Linodes in the Linode Manager. |
+| `vpc_label`            |          | An optional label for a VPC to create. If not specified, this is derived from the `instance_prefix` and `region`. |
+| `vpc_subnet`           |          | An optional CIDR block for the VPC subnet. By default, this is calculated based on `cluster_size` to provide at least 3x the IP addresses needed. For example, with `cluster_size: 2`, the default would be `10.0.0.0/29`. |
+| `linode_pg_max_hosts`  |          | An optional parameter to control placement group sizing. Specifies the maximum number of Linode instances to place in each placement group (default: 4). Placement groups are created automatically to ensure high availability by distributing instances across different physical hardware. |
+| `domain_name`          |          | If you have a domain name managed by Linode, you can specify it here to create DNS records for your Linode(s). If you don't have a domain name, you can leave this blank. |
+| `domain_service`       |          | An optional parameter to specify which DNS service manages your domain. Set to `'linode'` (the default) to use Linode's DNS to create DNS records. If using an external DNS service or want to manually manage DNS, set this to something other than `'linode'`. FQDNs will still be used in the hosts file and instance configuration. |
+| `ttl_sec`              |          | If managing DNS through linode, this is the ttl in seconds to use for DNS records created for your Linode(s). Leave blank to use linode's default. |
+| `local_cluster_ports`  |          | A list of ports the open on the firewall between hosts in the same regional cluster. By default this is set to 22 to allow ssh between hosts. |
+| `remote_cluster_ports` |          | A list of ports the open on the firewall between hosts in the different regional clusters. By default this is set to 22 to allow ssh between hosts. You typically only want to allow encrypted traffic between regions. |
+| `nofile_limits`        |          | An optional list of file descriptor limits to set for users. Each entry should have a `domain` (user or `*` for all) and `value`. By default, standard users get 1,048,576 and root gets 16,777,216. |
+
+
+## Deployment
+
+Once all your variables are set, you can run the playbook to create your Linode(s) and configure them.
+
+```command
+ansible-playbook provision.yml
+```
+
+This playbook will:
+* create all your linodes in the specified regions
+* add them to the specified firewall,
+* create a VPC and one or more placement groups if required,
+* add the linodes to the VPC and placement groups,
+* add the VPC to the firewall
+* add entries to DNS if required,
+* update the packages on the linodes,
+* set up the sudo user and add the ssh keys to the root and sudo users,
+* reboot the linodes to ensure all changes take effect,
+* update the local `hosts` file so you can use it for subsequent playbooks,
+* generate an `ssh_config` file so you can connect to your instances easily.
+
+### SSH Config File
+
+The `provision.yml` playbook generates a `./ssh_config` file with pre-configured entries for all your instances. This file is added to `.gitignore` since it contains instance-specific IP addresses and paths. The full path to the `ssh_config` file will be printed at the end of the provision playbook.
+
+To use the generated SSH config, add the following line to your `~/.ssh/config` file:
+
+```
+Include /path/to/linode-ansible-setup/ssh_config
+```
+
+This will make it easy to SSH into your instances:
+
+```command
+ssh instance-prefix-us-ord-001           # SSH as root
+ssh instance-prefix-us-ord-001-sudo      # SSH as sudo user
+```
+
+When you run `ansible-playbook shutdown.yml`, the SSH config entries will be automatically removed.
+
+### Host Key Verification
+
+The playbook automatically scans and adds the host keys of your new instances to your `~/.ssh/known_hosts` file. This allows strict SSH host key checking to be enabled, improving security by verifying server identity and preventing man-in-the-middle attacks. When you run `ansible-playbook shutdown.yml`, the host keys are automatically removed from `known_hosts`.
+
+Additionally, the generated `ssh_config` file includes `VerifyHostKeyDNS ask`, which enables SSHFP (RFC4255) verification:
+
+- **With DNS configured**: If you have SSHFP records published to DNS (which is done automatically when DNS is configured), SSH will verify host keys using DNS lookups
+- **Without DNS configured**: SSH falls back to normal host key verification via `known_hosts`
+- **DNS managed elsewhere**: If you manage DNS through another provider but add SSHFP records, the SSH client will automatically use them
+
+This provides defense-in-depth: host keys are verified both locally (via `known_hosts`) and optionally via DNS (via SSHFP records).
+
+
+## Tear-down
+
+To shut down your linodes and remove them from your account, run the following playbook:
+
+```command
+ansible-playbook shutdown.yml
+```
+
+This will undo most of the steps from the `provision.yml` playbook, but it will not remove the firewall, VPC or placement groups that were created.
+You can do that manually in the Linode Manager if you want to clean up everything, however since these do not incur any charges and are useful for
+future deployments, we leave them around by default.
