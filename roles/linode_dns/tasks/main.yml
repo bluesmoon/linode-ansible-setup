@@ -1,0 +1,56 @@
+# DNS
+- name: Check if hosts are in DNS
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_info/
+  linode.cloud.domain_info:
+    api_token: '{{ api_token }}'
+    domain: '{{ domain_name }}'
+  register: linode_dns_domain_info
+
+- name: Provision mode - Remove old hosts and add new hosts to dns
+  when:
+    - linode_dns_domain_info | d([]) | length > 0
+    - linode_dns_mode | d('present') == 'present'
+  block:
+    - name: Remove old hosts, brokers, and controllers from dns
+      # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_record/
+      linode.cloud.domain_record:
+        api_token: '{{ api_token }}'
+        domain_id: '{{ linode_dns_domain_info.domain.id }}'
+        record_id: '{{ item[0].id }}'
+        state: absent
+      vars:
+        instance_ips: "{{ dict(linode_instance_host_info.results | map(attribute='instance.label') | zip(linode_instance_host_info.results | map(attribute='networking.ipv4.public.0.address'))) }}"
+      when:
+        - linode_dns_domain_info | d([]) | length > 0
+        - item[0].name is regex('-' + item[1] + '-')
+        - (item[0].name in instance_ips and item[0].target != instance_ips[item[0].name])
+      with_nested:
+        - "{{ linode_dns_domain_info.records }}"
+        - "{{ region }}"
+
+    - name: Add new hosts to dns
+      # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_record/
+      linode.cloud.domain_record:
+        api_token: '{{ api_token }}'
+        domain_id: '{{ linode_dns_domain_info.domain.id }}'
+        name: '{{ item.instance.label }}'
+        target: '{{ item.instance.ipv4[0] }}'
+        ttl_sec: '{{ ttl_sec | default(omit) }}'
+        type: 'A'
+        state: present
+      with_items: "{{ linode_instance_host_info.results }}"
+      when:
+        - linode_dns_domain_info | d([]) | length > 0
+
+- name: Cleanup mode - Remove hosts from dns
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/domain_record/
+  linode.cloud.domain_record:
+    api_token: '{{ api_token }}'
+    domain_id: '{{ linode_dns_domain_info.domain.id }}'
+    record_id: '{{ item.id }}'
+    state: absent
+  when:
+    - linode_dns_domain_info | d([]) | length > 0
+    - linode_dns_mode | d('present') == 'absent'
+    - item.target in (node_data.server | d([]) | map(attribute='instance.ip_pub1'))
+  with_items: "{{ linode_dns_domain_info.records }}"

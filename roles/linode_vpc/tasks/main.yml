@@ -1,0 +1,67 @@
+# VPC
+
+- name: Assign vpc label - user defined
+  when:
+    - vpc_label is defined
+    - vpc_label | d('', true) != ''
+  ansible.builtin.set_fact:
+    linode_vpc_label: '{{ vpc_label }}'
+
+- name: Assign vpc subnet - user defined
+  ansible.builtin.set_fact:
+    linode_vpc_subnet: '{{ vpc_subnet }}'
+  when:
+    - vpc_subnet is defined
+    - vpc_subnet | d('', true) != ''
+
+- name: Create vpc
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc/
+  linode.cloud.vpc:
+    label: '{{ linode_vpc_label }}-{{ item }}'
+    region: '{{ item }}'
+    api_token: '{{ api_token }}'
+    description: VPC for {{ linode_tags }} in {{ item }} to talk to each other.
+    state: present
+  register: linode_vpc_info
+  with_items: '{{ region }}'
+
+- name: Get vpc subnet info
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc_subnet_info/
+  linode.cloud.vpc_subnet_info:
+    label: '{{ linode_vpc_label }}-{{ item.vpc.region }}-hosts'
+    vpc_id: '{{ item.vpc.id }}'
+    api_token: '{{ api_token }}'
+  register: linode_vpc_subnet_info
+  failed_when: false
+  with_items: '{{ linode_vpc_info.results }}'
+  when:
+    - item.vpc.id | d(0) > 0
+    - linode_vpc_mode | d('present') == 'present'
+
+- name: Remove incompatible subnet
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc_subnet/
+  linode.cloud.vpc_subnet:
+    label: '{{ linode_vpc_label }}-{{ item.item.vpc.region }}-hosts'
+    api_token: '{{ api_token }}'
+    state: absent
+    vpc_id: '{{ item.item.vpc.id }}'
+  when:
+    - linode_vpc_mode | d('present') == 'present'
+    - item is succeeded
+    - (item.msg|d('')) is not match('Failed to get VPC Subnet with label')
+    - item.subnet.ipv4 != linode_vpc_subnet
+  with_items: '{{ linode_vpc_subnet_info.results }}'
+
+- name: Create vpc subnet
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/vpc_subnet/
+  linode.cloud.vpc_subnet:
+    ipv4: '{{ linode_vpc_subnet }}'  # subnet supports an IP range 3x the cluster size
+    label: '{{ linode_vpc_label }}-{{ item.vpc.region }}-hosts'
+    api_token: '{{ api_token }}'
+    state: present
+    vpc_id: '{{ item.vpc.id }}'
+  register: linode_vpc_subnet_info
+  when:
+    - linode_vpc_mode | d('present') == 'present'
+    - item.vpc.id | d(0) > 0
+  with_items: '{{ linode_vpc_info.results }}'

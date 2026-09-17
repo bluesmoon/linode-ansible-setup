@@ -1,0 +1,8 @@
+- name: Cleanup mode - Shutdown nodes
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance/
+  linode.cloud.instance:
+    label: '{{ item.label }}'
+    api_token: '{{ api_token }}'
+    region: '{{ region | first }}'
+    state: absent
+  with_items: '{{ linode_instance_existing_instances.values() }}'

@@ -1,0 +1,12 @@
+# Firewall
+
+- name: Firewall info
+  ansible.builtin.import_tasks: info.yml
+
+- name: Firewall update
+  ansible.builtin.import_tasks: update.yml
+  when: not info_only | d(false) and linode_firewall_mode | d("present") == "present"
+
+- name: Firewall cleanup
+  ansible.builtin.import_tasks: cleanup.yml
+  when: not info_only | d(false) and linode_firewall_mode | d("present") == "absent"

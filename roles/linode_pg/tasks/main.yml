@@ -1,0 +1,22 @@
+# Placement Group
+
+- name: Get existing placement groups
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/placement_group_list/
+  linode.cloud.placement_group_list:
+    api_token: '{{ api_token }}'
+  register: linode_pg_existing
+
+- name: Provision mode - Create placement group for HA
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/placement_group/
+  linode.cloud.placement_group:
+    label: '{{ instance_prefix }}-{{ item.0 }}-ha-{{ item.1 }}'
+    placement_group_policy: strict
+    placement_group_type: anti_affinity:local
+    region: '{{ item.0 }}'
+    state: present
+    api_token: '{{ api_token }}'
+  register: linode_pg_info
+  with_nested:
+    - '{{ region }}'
+    - '{{ range(1, (cluster_size / linode_pg_max_hosts) | round(0, "ceil") | int + 1) }}'
+  when: linode_pg_mode | d('present') == 'present'

@@ -1,0 +1,16 @@
+# Cleanup Firewall
+- name: Remove hosts from firewall (cleanup mode)
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall/
+  linode.cloud.firewall:
+    api_token: '{{ api_token }}'
+    label: '{{ firewall_label }}'
+    devices: '{{ linode_firewall_info.firewall.entities | map("dict2items") | map("selectattr", "key", "in", ["id", "type"]) | map("items2dict") }}'
+    rules:
+      inbound: '{{ linode_firewall_inbound_rules_base }}'
+      inbound_policy: '{{ linode_firewall_info.firewall.rules.inbound_policy }}'
+      outbound: '{{ linode_firewall_info.firewall.rules.outbound }}'
+      outbound_policy: '{{ linode_firewall_info.firewall.rules.outbound_policy }}'
+    status: '{{ linode_firewall_info.firewall.status }}'
+    tags: '{{ linode_firewall_info.firewall.tags }}'
+    state: 'present'
+  when: firewall_label | d('', true) != ''

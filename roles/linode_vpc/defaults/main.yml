@@ -1,0 +1,2 @@
+linode_vpc_label: '{{ instance_prefix }}-cluster'
+linode_vpc_subnet: '10.0.0.0/{{ 32 - (((3 * cluster_size) | log(2) | round(0, "ceil")) | int) }}'  # subnet supports an IP range 3x the cluster size

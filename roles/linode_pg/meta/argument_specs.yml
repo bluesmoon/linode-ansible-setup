@@ -1,0 +1,40 @@
+---
+argument_specs:
+  main:
+    short_description: Create and manage Linode Placement Groups for high-performance clusters
+    description:
+      - Creates Linode Placement Groups in configured regions using anti-affinity policy
+      - Distributes cluster instances across placement groups for high performance
+      - Supports both provision mode (create) and cleanup mode (remove)
+      - Dependencies required before this role E(linode_env)
+    options:
+      api_token:
+        description: Linode API token for authentication
+        type: str
+        required: true
+      region:
+        description: List of Linode regions where placement groups will be created
+        type: list
+        elements: str
+        required: true
+      instance_prefix:
+        description: Prefix used for naming placement groups (will be suffixed with region and group number)
+        type: str
+        required: true
+      cluster_size:
+        description: Total number of instances in the cluster
+        type: int
+        required: true
+      linode_pg_max_hosts:
+        description: Maximum hosts per placement group (used to calculate number of groups needed)
+        type: int
+        required: false
+        default: 4
+      linode_pg_mode:
+        description: Operation mode - 'present' to create, 'absent' to remove
+        type: str
+        required: false
+        default: 'present'
+        choices:
+          - present
+          - absent

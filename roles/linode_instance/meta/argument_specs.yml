@@ -1,0 +1,54 @@
+---
+argument_specs:
+  main:
+    short_description: Create and manage Linode instances in VPCs and Placement Groups
+    description:
+      - Creates Linode instances configured with VPC networking and placement group assignment
+      - Instances include disk encryption, public/private IP configuration, and SSH key setup
+      - Supports both provision mode (create) and cleanup mode (remove)
+      - Registers instance information for use by downstream roles and playbooks
+      - Requires roles to be run first E(linode_vpc, linode_pg, linode_firewall)
+    options:
+      api_token:
+        description: Linode API token for authentication
+        type: str
+        required: true
+      region:
+        description: List of Linode regions where instances will be created
+        type: list
+        elements: str
+        required: true
+      instance_prefix:
+        description: Base label for instances (will be suffixed with region and instance number)
+        type: str
+        required: true
+      cluster_size:
+        description: Total number of instances to create
+        type: int
+        required: true
+      type:
+        description: Linode instance type/plan (e.g., 'g6-standard-2')
+        type: str
+        required: true
+      image:
+        description: Linode image to boot (e.g., 'linode/ubuntu22.04')
+        type: str
+        required: true
+      ssh_keys:
+        description: List of SSH public keys to authorize on root account
+        type: list
+        elements: str
+        required: true
+      linode_tags:
+        description: Tags to apply to created instances
+        type: list
+        elements: str
+        required: false
+      linode_instance_mode:
+        description: Operation mode - 'present' to create, 'absent' to remove
+        type: str
+        required: false
+        default: 'present'
+        choices:
+          - present
+          - absent

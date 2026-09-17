@@ -1,0 +1,40 @@
+---
+argument_specs:
+  main:
+    short_description: Create and manage Linode VPCs and subnets
+    description:
+      - Creates Linode VPCs in configured regions with specified subnet CIDR blocks
+      - Supports both provision mode (create) and cleanup mode (remove)
+      - Handles subnet creation, validation, and removal of incompatible subnets
+      - Dependencies required before this role E(linode_env)
+    options:
+      api_token:
+        description: Linode API token for authentication
+        type: str
+        required: true
+      region:
+        description: List of Linode regions where VPCs will be created
+        type: list
+        elements: str
+        required: true
+      linode_vpc_label:
+        description: Base label for VPCs (will be suffixed with region name)
+        type: str
+        required: true
+      linode_vpc_subnet:
+        description: CIDR block for VPC subnet (e.g., '10.0.0.0/24')
+        type: str
+        required: true
+      linode_tags:
+        description: Tags to apply to created VPCs
+        type: list
+        elements: str
+        required: false
+      linode_vpc_mode:
+        description: Operation mode - 'present' to create, 'absent' to remove
+        type: str
+        required: false
+        default: 'present'
+        choices:
+          - present
+          - absent

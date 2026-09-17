@@ -1,0 +1,38 @@
+---
+argument_specs:
+  main:
+    short_description: Add instances to DNS and manage DNS records
+    description:
+      - Creates A records in Linode DNS for provisioned instances
+      - Removes old DNS records for instances that no longer exist
+      - Supports both provision mode (create/update records) and cleanup mode (remove records)
+      - Only operates if domain_name is configured and domain_service is 'linode'
+      - Dependencies required before this role E(linode_instance)
+    options:
+      api_token:
+        description: Linode API token for authentication
+        type: str
+        required: true
+      domain_name:
+        description: DNS domain name to manage records in
+        type: str
+        required: false
+      domain_service:
+        description: DNS provider service - only 'linode' DNS operations are performed
+        type: str
+        required: false
+        default: linode
+        choices:
+          - linode
+      ttl_sec:
+        description: TTL in seconds for DNS records
+        type: int
+        required: false
+      linode_dns_mode:
+        description: Operation mode - 'present' to create/update records, 'absent' to remove
+        type: str
+        required: false
+        default: 'present'
+        choices:
+          - present
+          - absent

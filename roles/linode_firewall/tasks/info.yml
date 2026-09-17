@@ -1,0 +1,12 @@
+- name: Get firewall info
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/firewall_info/
+  linode.cloud.firewall_info:
+    label: '{{ firewall_label }}'
+    api_token: '{{ api_token }}'
+  register: linode_firewall_info
+  when: firewall_label | d('', true) != ''
+
+- name: Calculate devices and base inbound rules
+  ansible.builtin.set_fact:
+    linode_firewall_devices: '{{ linode_firewall_info.firewall.entities | map("dict2items") | map("selectattr", "key", "in", ["id", "type"]) | map("items2dict") }}'
+    linode_firewall_inbound_rules_base: '{{ (linode_firewall_info.firewall.rules.inbound | rejectattr("label", "in", ["accept-" + linode_vpc_label, "accept-cluster-hosts"])) }}'

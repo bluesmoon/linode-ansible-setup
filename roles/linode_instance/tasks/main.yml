@@ -1,0 +1,23 @@
+# Instances
+
+- name: Get list of instances
+  # https://galaxy.ansible.com/ui/repo/published/linode/cloud/content/module/instance_list/
+  linode.cloud.instance_list:
+    api_token: '{{ api_token }}'
+    filters:
+      - name: label
+        values: "{{ [instance_prefix] | product([region] | flatten, query('sequence', count=cluster_size, format='%03d')) | map('join', '-') | list }}"
+    order_by: label
+  register: linode_instance_existing_instances
+
+- name: Convert instances to a dict
+  ansible.builtin.set_fact:
+    linode_instance_existing_instances: "{{ dict(linode_instance_existing_instances.instances | map(attribute='label') | zip(linode_instance_existing_instances.instances)) }}"
+
+- name: Provision
+  ansible.builtin.import_tasks: provision.yml
+  when: linode_instance_mode | d('present') == 'present'
+
+- name: Shutdown
+  ansible.builtin.import_tasks: shutdown.yml
+  when: linode_instance_mode | d('present') == 'absent'

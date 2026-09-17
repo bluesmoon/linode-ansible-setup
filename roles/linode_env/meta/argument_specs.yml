@@ -1,0 +1,18 @@
+---
+argument_specs:
+  main:
+    short_description: Validate Linode environment and region capabilities
+    description:
+      - Verifies that configured Linode regions support all necessary features
+      - Queries region information for VPC, Placement Groups, and Disk Encryption support
+      - Runs as a pre-flight check to fail fast if regions don't meet requirements
+    options:
+      api_token:
+        description: Linode API token for authentication
+        type: str
+        required: true
+      region:
+        description: List of Linode regions to validate
+        type: list
+        elements: str
+        required: true

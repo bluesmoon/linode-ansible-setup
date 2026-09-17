@@ -1,0 +1,59 @@
+---
+argument_specs:
+  main:
+    short_description: Manage Linode Firewall rules for cluster networking
+    description:
+      - Configures firewall rules for secure inter-cluster communication
+      - Two-phase operation E(info-only mode during dependency resolution, then update mode in main playbook)
+      - Supports both provision mode (update rules) and cleanup mode (remove cluster-specific rules)
+      - Handles VPC subnet rules, inter-cluster rules, and cluster-host rules
+      - Dependencies required before this role E(linode_vpc)
+    options:
+      api_token:
+        description: Linode API token for authentication
+        type: str
+        required: true
+      firewall_label:
+        description: Name/label of the firewall to manage
+        type: str
+        required: false
+      info_only:
+        description: If true, only gather firewall information without making changes
+        type: bool
+        required: false
+        default: false
+      linode_vpc_label:
+        description: VPC label used to match VPC subnet CIDR rules
+        type: str
+        required: true
+      linode_vpc_subnet:
+        description: CIDR block of VPC subnet for inbound rules
+        type: str
+        required: true
+      local_cluster_ports:
+        description: List of ports to allow between nodes in same VPC
+        type: list
+        elements: int
+        required: false
+        default: [22]
+      remote_cluster_ports:
+        description: List of ports to allow between nodes across clusters
+        type: list
+        elements: int
+        required: false
+        default: [22]
+      linode_firewall_rules:
+        description: |
+          Dictionary of firewall rules to apply. Each rule defines VPC and cluster access policies.
+          Default includes 'vpc_access' (traffic within VPC) and 'cluster_access' (traffic between clusters).
+          Can be overridden in group_vars to customize ports, descriptions, or protocols.
+        type: dict
+        required: false
+      linode_firewall_mode:
+        description: Operation mode - 'present' to update rules, 'absent' to remove cluster rules
+        type: str
+        required: false
+        default: 'present'
+        choices:
+          - present
+          - absent
