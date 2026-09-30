@@ -81,7 +81,7 @@
           {%- for r in [region]|flatten %}
           [{{ r }}]
           {%- for instance in linode_instance_host_info.results | selectattr('instance.region', 'eq', r) %}
-          {{ instance.networking.ipv4.public.0.rdns }} region='{{ instance.instance.region }}'
+          {{ instance.networking.ipv4.public.0.address }} hostname='{{ instance.networking.ipv4.public.0.rdns }}' region='{{ instance.instance.region }}'
           {%- endfor %}
           {% endfor %}
           [all:children]
