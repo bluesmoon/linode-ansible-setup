@@ -154,3 +154,8 @@
   roles:
     - wait_for_ssh
     - setup_os
+
+- name: Install ollama
+  hosts: all
+  roles:
+    - ollama

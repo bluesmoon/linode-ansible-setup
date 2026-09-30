@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches: [main, ollama]
 
 # Cancel superseded runs on the same PR/branch
 concurrency:
@@ -48,7 +48,7 @@ jobs:
           key: collections-${{ runner.os }}-${{ hashFiles('collections.yml') }}
 
       - name: Install collections
-        run: ansible-galaxy collection install -r collections.yml
+        run: ansible-galaxy install -r collections.yml
 
       - name: Run ansible-lint
         run: ansible-lint --profile production
@@ -77,7 +77,7 @@ jobs:
           key: collections-${{ runner.os }}-${{ hashFiles('collections.yml') }}
 
       - name: Install collections
-        run: ansible-galaxy collection install -r collections.yml
+        run: ansible-galaxy install -r collections.yml
 
       - name: Generate throwaway vault password
         run: openssl rand -base64 32 > /tmp/vault_pass.txt
