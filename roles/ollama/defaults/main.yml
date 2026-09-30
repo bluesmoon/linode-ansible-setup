@@ -1,0 +1,23 @@
+ollama_models:
+  - llama3.2:3b
+  - qwen2.5:3b
+  - glm4:9b
+  - phi4-mini:3.8b
+
+ollama_version: "0.35.0"
+ollama_models_dir: /home/ollama/ollama-models
+
+# GPU settings
+ollama_enable_gpu: false
+ollama_gpu_type: ""  # nvidia, amd, or empty for CPU
+
+
+ollama_app_user: ollama
+ollama_app_group: ollama
+ollama_app_port: 11434
+ollama_host: "127.0.0.1"
+
+# Optional: Environment variables
+ollama_origins: "*"  # Allow CORS
+ollama_debug: false
+ollama_keep_alive: 5m

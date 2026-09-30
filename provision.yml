@@ -157,5 +157,10 @@
 
 - name: Install ollama
   hosts: all
+
+  vars_files:
+    - group_vars/vars
+    - group_vars/secret_vars
+
   roles:
     - ollama

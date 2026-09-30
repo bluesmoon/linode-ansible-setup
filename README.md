@@ -215,6 +215,20 @@ Additionally, the generated `ssh_config` file includes `VerifyHostKeyDNS ask`, w
 This provides defense-in-depth: host keys are verified both locally (via `known_hosts`) and optionally via DNS (via SSHFP records).
 
 
+## Ollama
+
+After provisioning, `ollama.yml` installs ollama and the `mempalace` skill on every host.
+
+```command
+ansible-playbook ollama.yml
+```
+This role includes the following models by default:
+  - llama3.2:3b
+  - qwen2.5:3b
+  - qwen2.5-coder:3b
+  - glm4:9b
+  - phi4-mini:3.8b
+
 ## Tear-down
 
 To shut down your linodes and remove them from your account, run the following playbook:
