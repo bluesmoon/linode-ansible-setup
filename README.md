@@ -104,7 +104,7 @@ Then setup dependencies in the environment.  You can run this step any time depe
 pip install -U pip
 pip install -r requirements.txt
 
-ansible-galaxy collection install -r collections.yml
+ansible-galaxy install -r collections.yml
 ansible --version
 ```
 
