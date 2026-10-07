@@ -8,3 +8,9 @@
   roles:
     - ollama
 
+    # From https://github.com/morgangraphics/ansible-role-nvm/
+    - role: nvm
+      become: true
+      become_user: "{{ sudo_username }}"
+      nvm_commands:
+        - "npx --yes skills add MemPalace/mempalace --yes"

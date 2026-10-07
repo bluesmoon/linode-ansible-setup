@@ -1,3 +1,5 @@
+# Based on https://wiki.linux-server-admin.com/web-apps/genai/ollama/setup/ansible
+
 - name: GPU Dependencies
   ansible.builtin.include_tasks: gpu-deps.yml
   when: ollama_enable_gpu

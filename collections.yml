@@ -5,3 +5,8 @@ collections:
     version: 0.50.0
   - name: community.general
     version: 13.4.0
+
+roles:
+  - name: nvm
+    src: morgangraphics.ansible-role-nvm
+    version: v2.0.0
