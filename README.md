@@ -215,19 +215,44 @@ Additionally, the generated `ssh_config` file includes `VerifyHostKeyDNS ask`, w
 This provides defense-in-depth: host keys are verified both locally (via `known_hosts`) and optionally via DNS (via SSHFP records).
 
 
-## Ollama
+## Ollama and the coding agent
 
-After provisioning, `ollama.yml` installs ollama and the `mempalace` skill on every host.
+After provisioning, `ollama.yml` installs ollama and the `coding_agent` role on every host:
 
 ```command
 ansible-playbook ollama.yml
 ```
-This role includes the following models by default:
-  - llama3.2:3b
-  - qwen2.5:3b
-  - qwen2.5-coder:3b
-  - glm4:9b
-  - phi4-mini:3.8b
+The following models are installed by default:
+- llama3.2:3b
+- qwen2.5:3b
+- qwen2.5-coder:3b
+- glm4:9b
+- phi4-mini:3.8b
+
+The `coding_agent` role installs a small test-driven agent. Given a task, it asks a local ollama model to write pytest tests
+(or uses tests you supply), writes a solution, runs the tests and feeds failures back to the model until they pass or it
+runs out of iterations. Generated code is executed as an unprivileged `coder` user with CPU, memory and file-size limits.
+
+On a CPU-only instance such as `g6-dedicated-4` (4 cores, 8GB RAM) the default model is `qwen2.5-coder:3b`. Override it in
+`group_vars/vars` with `coding_agent_model` if you have more memory (for example `qwen2.5-coder:7b`).
+
+To use it, ssh to the instance as the sudo user:
+
+```command
+coding-agent "Write slugify(s): lowercase, strip accents, collapse non-alphanumerics to single hyphens, trim hyphens"
+
+# Better results with your own tests (the file must be readable by the coder user):
+cp my_tests.py /srv/coding-agent/tasks/test_slugify.py
+coding-agent "Write slugify(s) ..." --tests /srv/coding-agent/tasks/test_slugify.py
+```
+
+Results are written to `/srv/coding-agent/workspaces/<timestamp>/solution.py`. The sudo user is added to the `coder` group, so log out and
+back in once after the first run of the playbook to be able to read the output without `sudo`. Use `tmux` for long runs.
+
+The role's variables are documented in `roles/coding_agent/meta/argument_specs.yml`.
+
+This is not a hardened sandbox. Do not give the `coder` user credentials, and do not allow outbound network access from it for untrusted tasks.
+
 
 ## Tear-down
 

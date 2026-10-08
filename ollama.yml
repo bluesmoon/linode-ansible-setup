@@ -7,6 +7,7 @@
 
   roles:
     - ollama
+    - coding_agent
 
     # From https://github.com/morgangraphics/ansible-role-nvm/
     - role: nvm

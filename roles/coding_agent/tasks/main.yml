@@ -1,0 +1,104 @@
+---
+- name: Install python packages needed for the agent virtualenv
+  ansible.builtin.apt:
+    pkg:
+      - python3
+      - python3-venv
+      - python3-pip
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create agent group
+  ansible.builtin.group:
+    name: "{{ coding_agent_group }}"
+    system: true
+    state: present
+
+- name: Create unprivileged agent user
+  ansible.builtin.user:
+    name: "{{ coding_agent_user }}"
+    group: "{{ coding_agent_group }}"
+    shell: "{{ coding_agent_shell }}"
+    home: "{{ coding_agent_data_dir }}"
+    create_home: false
+    system: true
+    state: present
+
+- name: Let the sudo user read agent output
+  ansible.builtin.user:
+    name: "{{ sudo_username }}"
+    groups: "{{ coding_agent_group }}"
+    append: true
+
+- name: Create root-owned install directory
+  ansible.builtin.file:
+    path: "{{ coding_agent_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create agent data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ coding_agent_user }}"
+    group: "{{ coding_agent_group }}"
+    mode: "2770"
+  loop:
+    - "{{ coding_agent_data_dir }}"
+    - "{{ coding_agent_workspaces_dir }}"
+    - "{{ coding_agent_tasks_dir }}"
+
+- name: Create virtualenv with agent dependencies
+  ansible.builtin.pip:
+    name: "{{ coding_agent_pip_packages }}"
+    virtualenv: "{{ coding_agent_install_dir }}/venv"
+    virtualenv_command: python3 -m venv
+    state: present
+
+- name: Install agent script
+  ansible.builtin.copy:
+    src: agent.py
+    dest: "{{ coding_agent_install_dir }}/agent.py"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install agent wrapper command
+  ansible.builtin.template:
+    src: coding-agent.sh.j2
+    dest: "/usr/local/bin/{{ coding_agent_command }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Wait for ollama to be ready
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ ollama_app_port | default(11434) }}/api/tags"
+    method: GET
+    status_code: 200
+  register: coding_agent_ollama_health
+  retries: 30
+  delay: 10
+  until: coding_agent_ollama_health.status == 200
+
+- name: List models already present in ollama
+  ansible.builtin.command: /usr/local/bin/ollama list
+  become: true
+  become_user: "{{ coding_agent_ollama_user }}"
+  environment:
+    OLLAMA_MODELS: "{{ coding_agent_ollama_models_dir }}"
+  register: coding_agent_model_list
+  changed_when: false
+
+- name: Pull agent model
+  ansible.builtin.command: "/usr/local/bin/ollama pull {{ coding_agent_model }}"
+  become: true
+  become_user: "{{ coding_agent_ollama_user }}"
+  environment:
+    OLLAMA_MODELS: "{{ coding_agent_ollama_models_dir }}"
+  register: coding_agent_pull_result
+  changed_when: true
+  when: coding_agent_model not in coding_agent_model_list.stdout

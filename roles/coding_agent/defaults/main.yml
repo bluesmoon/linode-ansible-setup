@@ -1,0 +1,29 @@
+---
+# Model the agent uses. Pulled into ollama by this role if it is not already present.
+# qwen2.5-coder:3b is the best code model that is fast enough on a CPU-only 4 core / 8GB box.
+coding_agent_model: qwen2.5-coder:3b
+
+# Unprivileged account that generated code is executed as.
+coding_agent_user: coder
+coding_agent_group: coder
+coding_agent_shell: /usr/sbin/nologin
+
+# Where things live
+coding_agent_install_dir: /opt/coding-agent
+coding_agent_data_dir: /srv/coding-agent
+coding_agent_workspaces_dir: "{{ coding_agent_data_dir }}/workspaces"
+coding_agent_tasks_dir: "{{ coding_agent_data_dir }}/tasks"
+
+# Ollama endpoint. The agent runs on the same host as ollama.
+coding_agent_ollama_url: "http://127.0.0.1:{{ ollama_app_port | default(11434) }}/api/chat"
+# Needed so `ollama pull` writes into the same models directory the service uses.
+coding_agent_ollama_models_dir: "{{ ollama_models_dir | default('/home/ollama/ollama-models') }}"
+coding_agent_ollama_user: "{{ ollama_app_user | default('ollama') }}"
+
+# Python packages installed into the agent's virtualenv
+coding_agent_pip_packages:
+  - requests
+  - pytest
+
+# Name of the wrapper command installed on the PATH
+coding_agent_command: coding-agent

@@ -1,6 +1,7 @@
 ollama_models:
   - llama3.2:3b
   - qwen2.5:3b
+  - qwen2.5-coder:3b
   - glm4:9b
   - phi4-mini:3.8b
 

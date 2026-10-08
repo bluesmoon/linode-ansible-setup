@@ -1,0 +1,78 @@
+---
+argument_specs:
+  main:
+    short_description: Install a test-driven autonomous coding agent that uses a local ollama model
+    description:
+      - Installs a small Python agent (generate tests, write code, run pytest, repair) under C(/opt/coding-agent).
+      - Creates an unprivileged user that generated code is executed as, with CPU, memory and file size limits.
+      - Pulls the configured model into ollama if it is not already present.
+      - Installs a C(coding-agent) wrapper command that re-executes itself as the unprivileged user.
+      - Requires the C(ollama) role to have run first on the same host.
+    options:
+      coding_agent_model:
+        description: Ollama model tag used by the agent.
+        type: str
+        required: false
+        default: qwen2.5-coder:3b
+      coding_agent_user:
+        description: Unprivileged user that runs the agent and executes generated code.
+        type: str
+        required: false
+        default: coder
+      coding_agent_group:
+        description: Group for the agent user. Also given to C(sudo_username) so results can be read without sudo.
+        type: str
+        required: false
+        default: coder
+      coding_agent_shell:
+        description: Login shell for the agent user.
+        type: str
+        required: false
+        default: /usr/sbin/nologin
+      coding_agent_install_dir:
+        description: Root-owned directory holding agent.py and its virtualenv.
+        type: path
+        required: false
+        default: /opt/coding-agent
+      coding_agent_data_dir:
+        description: Parent directory for workspaces and task files.
+        type: path
+        required: false
+        default: /srv/coding-agent
+      coding_agent_workspaces_dir:
+        description: Where each agent run writes its output.
+        type: path
+        required: false
+      coding_agent_tasks_dir:
+        description: Drop test files here so the agent user can read them (passed with C(--tests)).
+        type: path
+        required: false
+      coding_agent_ollama_url:
+        description: Full URL of the ollama chat endpoint.
+        type: str
+        required: false
+      coding_agent_ollama_models_dir:
+        description: Directory ollama stores models in.
+        type: path
+        required: false
+      coding_agent_ollama_user:
+        description: User the ollama service runs as.
+        type: str
+        required: false
+      coding_agent_pip_packages:
+        description: Python packages installed into the agent virtualenv.
+        type: list
+        elements: str
+        required: false
+        default:
+          - requests
+          - pytest
+      coding_agent_command:
+        description: Name of the wrapper installed in /usr/local/bin.
+        type: str
+        required: false
+        default: coding-agent
+      sudo_username:
+        description: Existing sudo user, added to the agent group so it can read workspaces.
+        type: str
+        required: true

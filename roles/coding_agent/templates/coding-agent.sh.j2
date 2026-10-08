@@ -1,0 +1,16 @@
+#!/bin/sh
+# {{ ansible_managed }}
+# Run the coding agent as the unprivileged "{{ coding_agent_user }}" user.
+#   {{ coding_agent_command }} "task description" [--tests {{ coding_agent_tasks_dir }}/my_tests.py] [--model MODEL]
+set -eu
+
+if [ "$(id -un)" != "{{ coding_agent_user }}" ]; then
+    exec sudo -u "{{ coding_agent_user }}" -- "$0" "$@"
+fi
+
+export OLLAMA_URL="{{ coding_agent_ollama_url }}"
+export AGENT_MODEL="${AGENT_MODEL:-{{ coding_agent_model }}}"
+export AGENT_WORKSPACES="{{ coding_agent_workspaces_dir }}"
+
+cd "{{ coding_agent_data_dir }}"
+exec "{{ coding_agent_install_dir }}/venv/bin/python" "{{ coding_agent_install_dir }}/agent.py" "$@"
